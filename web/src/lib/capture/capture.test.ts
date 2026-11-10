@@ -219,6 +219,17 @@ test('a network error while offline waits for the online event without using a t
   expect(q.get(e.id)?.state).toBe('uploaded')
 })
 
+test('a contents photo has role contents and no item id, even when the picker gave no role', async () => {
+  const q = new CaptureQueue({ store: new MemoryStore(), upload: async () => {}, isOnline: () => false, now: () => 0 })
+  const s = new CaptureSession(q, '')
+  s.setPlace({ id: 'B1', kind: 'box', name: 'Box 1', path: 'Box 1', home_id: null, box_number: 1, color: null })
+  s.setMode('contents')
+  const [e] = await s.take('', [blob()])
+  expect(e.role).toBe('contents')
+  expect(buildForm(e).get('item_id')).toBeNull()
+  expect(buildForm(e).get('role')).toBe('contents')
+})
+
 test('a contents photo is sent to the place alone, with no item id', () => {
   const f = buildForm(entry({ role: 'contents', placeId: 'P1', groupId: 'G9' }))
   expect(f.get('place_id')).toBe('P1')

@@ -71,7 +71,10 @@ export class CaptureSession {
   }
 
   /** Queues photos into the open group. Contents photos need a place (the container). */
-  async take(role: Role, blobs: Blob[]): Promise<QueueEntry[]> {
+  async take(wanted: Role | string, blobs: Blob[]): Promise<QueueEntry[]> {
+    // An unknown or empty role (a picker without a tag) falls back to what the mode takes.
+    const known: string[] = ['item', 'label', 'receipt', 'contents']
+    const role = (known.includes(wanted) ? wanted : this.mode === 'contents' ? 'contents' : 'item') as Role
     if (role === 'contents' && !this.place) throw new Error('Choose the container first.')
     const out: QueueEntry[] = []
     for (const blob of blobs) out.push(await this.queue.add({ groupId: this.groupId, role, placeId: this.place?.id ?? null, blob }))
