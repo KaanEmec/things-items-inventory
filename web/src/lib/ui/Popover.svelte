@@ -7,8 +7,10 @@
     children: Snippet
     align?: 'left' | 'right'
     open?: boolean
+    /** Open upwards (for triggers at the bottom of the screen). */
+    up?: boolean
   }
-  let { trigger, children, align = 'left', open = $bindable(false) }: Props = $props()
+  let { trigger, children, align = 'left', up = false, open = $bindable(false) }: Props = $props()
   let root: HTMLElement
 </script>
 
@@ -21,7 +23,7 @@
   {@render trigger({ open, toggle: () => (open = !open) })}
   {#if open}
     <div
-      class="absolute z-30 mt-1.5 min-w-48 rounded-[10px] border border-border bg-surface p-1 shadow-popover {align === 'right' ? 'right-0' : 'left-0'}"
+      class="absolute z-30 min-w-48 {up ? 'bottom-full mb-1.5' : 'mt-1.5'} rounded-[10px] border border-border bg-surface p-1 shadow-popover {align === 'right' ? 'right-0' : 'left-0'}"
     >
       {@render children()}
     </div>

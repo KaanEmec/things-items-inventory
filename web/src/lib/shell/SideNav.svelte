@@ -1,6 +1,9 @@
 <script lang="ts">
   import { APP_NAME } from '../app'
+  import { auth } from '../auth.svelte'
   import Icon from '../Icon.svelte'
+  import Avatar from '../ui/Avatar.svelte'
+  import HouseholdSwitcher from './HouseholdSwitcher.svelte'
   import { isActive } from '../router.svelte'
   import { routes } from '../../routes'
 
@@ -40,9 +43,16 @@
     {/each}
   {/each}
 
-  <div class="mt-auto pt-4">
+  <div class="mt-auto flex flex-col gap-1 pt-4">
+    <HouseholdSwitcher up class="mb-1" />
     <a href={settings.path} class={item} aria-current={isActive(settings.path) ? 'page' : undefined}>
       <Icon name={settings.icon} />{settings.title}
     </a>
+    {#if auth.user}
+      <a href="/settings/account" class="flex h-10 items-center gap-2.5 rounded-control px-2.5 hover:bg-chrome-hover">
+        <Avatar name={auth.user.name} size={24} />
+        <span class="min-w-0 truncate text-[13px] font-medium">{auth.user.name}</span>
+      </a>
+    {/if}
   </div>
 </nav>

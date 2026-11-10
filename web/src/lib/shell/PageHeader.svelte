@@ -2,6 +2,7 @@
   import type { Snippet } from 'svelte'
   import Icon from '../Icon.svelte'
   import type { IconName } from '../icons'
+  import HouseholdSwitcher from './HouseholdSwitcher.svelte'
 
   interface Props {
     icon: IconName
@@ -29,5 +30,6 @@
     {/if}
     <h1 class="m-0 text-[18px] font-bold tracking-[-0.01em]">{title}</h1>
   </div>
+  <HouseholdSwitcher class="md:hidden" align="right" />
   {#if actions}<div class="flex items-center gap-2">{@render actions()}</div>{/if}
 </header>

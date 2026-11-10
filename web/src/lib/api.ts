@@ -14,6 +14,14 @@ export class ApiError extends Error {
 
 export type Page<T> = { items: T[]; next_cursor: string }
 
+let onUnauthorized: ((path: string) => void) | undefined
+/** The auth store registers here; called when a signed-in request comes back 401. */
+export function setUnauthorizedHandler(fn: (path: string) => void) {
+  onUnauthorized = fn
+}
+// Public endpoints answer 401 for wrong credentials, which is not an expired session.
+const publicPath = /^\/api\/v1\/(auth\/(login|reset)|setup|invites\/|me\/password)/
+
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   let res: Response
   try {
@@ -37,6 +45,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     }
   }
 
+  if (res.status === 401 && !publicPath.test(path)) onUnauthorized?.(path)
   if (!res.ok) {
     const e = data?.error
     throw new ApiError(
