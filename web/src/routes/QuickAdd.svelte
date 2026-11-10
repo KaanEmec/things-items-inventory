@@ -13,6 +13,7 @@
   import DescribeBox from '../lib/quickadd/DescribeBox.svelte'
   import { Describe } from '../lib/quickadd/textrows.svelte'
   import DupHint from '../lib/quickadd/DupHint.svelte'
+  import ImportDialog from '../lib/quickadd/ImportDialog.svelte'
   import Grid from '../lib/quickadd/Grid.svelte'
   import { Sheet } from '../lib/quickadd/sheet.svelte'
   import { createSuggest } from '../lib/quickadd/suggest'
@@ -34,6 +35,7 @@
   let error = $state('')
   let attempt = $state(0)
   let placeOpen = $state(false)
+  let importOpen = $state(false)
   const describe = new Describe()
 
   // The sheet only exists on a desktop-sized screen.
@@ -107,6 +109,7 @@
   <Panel>
     <PageHeader icon="table" title="Quick add" breadcrumb={['Tools']}>
       {#snippet actions()}
+        <Button icon="upload" onclick={() => (importOpen = true)}>Import CSV</Button>
         <Button icon="refresh" onclick={() => sheet?.undo()} disabled={!sheet || sheet.undoDepth === 0}>Undo <kbd class="font-mono text-[11px] text-muted">⌘Z</kbd></Button>
       {/snippet}
     </PageHeader>
@@ -169,4 +172,5 @@
       <Skeleton rows={8} />
     {/if}
   </Panel>
+  <ImportDialog bind:open={importOpen} />
 {/if}

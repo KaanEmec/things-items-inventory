@@ -94,3 +94,14 @@ describe('offline lines', () => {
     expect(lines.size).toBe(0)
   })
 })
+
+import { waitForJob } from './csvimport'
+describe('waitForJob', () => {
+  it('polls until the job is over', async () => {
+    const states = [{ state: 'queued' }, { state: 'running' }, { state: 'done', result: { added: 2, failed: 0 } }] as any[]
+    const seen: string[] = []
+    const last = await waitForJob('j', (s) => seen.push(s.state), { intervalMs: 0, get: async () => states.shift() })
+    expect(seen).toEqual(['queued', 'running', 'done'])
+    expect(last.result?.added).toBe(2)
+  })
+})
