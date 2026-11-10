@@ -14,10 +14,12 @@ import (
 	"github.com/kaanemec/things-items-inventory/internal/auth"
 	"github.com/kaanemec/things-items-inventory/internal/config"
 	"github.com/kaanemec/things-items-inventory/internal/db"
+	"github.com/kaanemec/things-items-inventory/internal/drafts"
 	"github.com/kaanemec/things-items-inventory/internal/httpapi"
 	"github.com/kaanemec/things-items-inventory/internal/inventory"
 	"github.com/kaanemec/things-items-inventory/internal/jobs"
 	"github.com/kaanemec/things-items-inventory/internal/photos"
+	"github.com/kaanemec/things-items-inventory/internal/quickadd"
 	"github.com/kaanemec/things-items-inventory/internal/search"
 	"github.com/kaanemec/things-items-inventory/internal/stream"
 )
@@ -61,14 +63,20 @@ func features(d *db.DB, cfg config.Config, q *jobs.Queue, hub *stream.Hub) []Fea
 	authSvc.AddSetupHook(inventory.SeedStarter)
 	inventorySvc := inventory.New(d)
 	aiSvc := ai.NewService(d, cfg)
+	quickaddSvc := quickadd.New(d, aiSvc)
 	photoSvc := photos.New(d, cfg)
 	searchSvc := search.New(d) // subscribes the index to inventory.OnChange
 	photoSvc.UseQueue(q)
-	linkPhotos(d, photoSvc)
+	draftsSvc := drafts.New(d, aiSvc, photoSvc, q)
+	linkPhotos(d, photoSvc, draftsSvc)
 	return []Feature{
 		{Name: "auth", Routes: authSvc.Routes},
 		{Name: "ai", Routes: aiSvc.Routes, Seed: func(ctx context.Context, d *db.DB, hid string) (SeedResult, error) {
 			m, err := aiSvc.Seed(ctx, d, hid)
+			return SeedResult{Markers: m}, err
+		}},
+		{Name: "quickadd", Routes: quickaddSvc.Routes, Seed: func(ctx context.Context, d *db.DB, hid string) (SeedResult, error) {
+			m, err := quickaddSvc.Seed(ctx, d, hid)
 			return SeedResult{Markers: m}, err
 		}},
 		{Name: "inventory", Routes: inventorySvc.Routes, Seed: func(ctx context.Context, d *db.DB, hid string) (SeedResult, error) {
@@ -82,6 +90,10 @@ func features(d *db.DB, cfg config.Config, q *jobs.Queue, hub *stream.Hub) []Fea
 		{Name: "search", Routes: searchSvc.Routes, Seed: func(ctx context.Context, d *db.DB, hid string) (SeedResult, error) {
 			m, err := searchSvc.Seed(ctx, d, hid)
 			return SeedResult{Markers: m}, err
+		}},
+		{Name: "drafts", Routes: draftsSvc.Routes, Seed: func(ctx context.Context, d *db.DB, hid string) (SeedResult, error) {
+			paths, markers, err := draftsSvc.Seed(ctx, d, hid)
+			return SeedResult{PathValues: paths, Markers: markers}, err
 		}},
 		{Name: "stream", Routes: hub.Routes},
 		jobsFeature(q),

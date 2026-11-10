@@ -10,6 +10,7 @@ import (
 	"github.com/kaanemec/things-items-inventory/internal/auth"
 	"github.com/kaanemec/things-items-inventory/internal/db"
 	"github.com/kaanemec/things-items-inventory/internal/db/sqlc"
+	"github.com/kaanemec/things-items-inventory/internal/drafts"
 	"github.com/kaanemec/things-items-inventory/internal/httpapi"
 	"github.com/kaanemec/things-items-inventory/internal/inventory"
 	"github.com/kaanemec/things-items-inventory/internal/jobs"
@@ -17,7 +18,7 @@ import (
 )
 
 // linkPhotos joins inventory and photos, which do not import each other.
-func linkPhotos(d *db.DB, ph *photos.Service) {
+func linkPhotos(d *db.DB, ph *photos.Service, dr *drafts.Service) {
 	inventory.PhotoLoader = func(ctx context.Context, q sqlc.DBTX, hid string, ids []string, mainOnly bool) (map[string][]inventory.ItemPhoto, error) {
 		links, err := photos.ItemLinks(ctx, q, hid, ids, mainOnly)
 		if err != nil {
@@ -61,9 +62,13 @@ func linkPhotos(d *db.DB, ph *photos.Service) {
 			f["place_id"], _ = json.Marshal(t.PlaceID)
 		}
 		err := inventory.InTx(ctx, d, func(tx *sql.Tx) error {
-			_, _, err := inventory.CreateItem(ctx, tx, hid, uid, inventory.NewItem{
-				ID: t.ItemID, Source: "capture", AIState: "queued", Fields: f})
-			return err
+			if _, _, err := inventory.CreateItem(ctx, tx, hid, uid, inventory.NewItem{
+				ID: t.ItemID, Source: "capture", Fields: f}); err != nil {
+				return err
+			}
+			// A draft's first photo (and later ones) queues a draft_item
+			// run; without AI the item stays a photo-only draft.
+			return dr.OnPhoto(ctx, tx, hid, uid, t.ItemID, role)
 		})
 		return err == nil, err
 	})
