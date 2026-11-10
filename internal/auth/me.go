@@ -1,7 +1,6 @@
 package auth
 
 import (
-	"context"
 	"database/sql"
 	"errors"
 	"net/http"
@@ -11,8 +10,6 @@ import (
 	"github.com/kaanemec/things-items-inventory/internal/db/sqlc"
 	"github.com/kaanemec/things-items-inventory/internal/httpapi"
 )
-
-type contextT = context.Context
 
 func itoa(n int) string { return strconv.Itoa(n) }
 
@@ -121,8 +118,9 @@ func (s *Service) changePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ctx := r.Context()
-	email, client := normEmail(ident.Email), s.clientAddr(r)
-	if wait := s.limit.retryAfter(email, client); wait > 0 {
+	client := s.clientAddr(r)
+	// Own limiter, keyed by the signed-in user: nobody else can use it up.
+	if wait := s.pwLimit.begin(ident.UserID, client); wait > 0 {
 		w.Header().Set("Retry-After", itoa(int(wait.Seconds())+1))
 		httpapi.WriteError(w, httpapi.NewError(httpapi.CodeRateLimited, "Too many attempts. Wait a few minutes and try again."))
 		return
@@ -136,12 +134,17 @@ func (s *Service) changePassword(w http.ResponseWriter, r *http.Request) {
 		httpapi.WriteError(w, err)
 		return
 	}
-	if ok, verr := VerifyPassword(in.Current, user.PasswordHash); verr != nil || !ok {
-		s.limit.fail(email, client)
+	ok, verr := VerifyPasswordCtx(ctx, in.Current, user.PasswordHash)
+	if verr != nil && ctx.Err() != nil {
+		httpapi.WriteError(w, verr)
+		return
+	}
+	if verr != nil || !ok {
 		httpapi.WriteError(w, invalid("current", "That is not your current password."))
 		return
 	}
-	hash, err := HashPassword(in.New)
+	s.pwLimit.undo(ident.UserID, client)
+	hash, err := HashPasswordCtx(ctx, in.New)
 	if err != nil {
 		httpapi.WriteError(w, err)
 		return

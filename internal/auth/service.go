@@ -43,14 +43,30 @@ type Service struct {
 	now           func() time.Time
 	limit         *limiter
 	authenticator []Authenticator
+	setupHooks    []SetupHook
+	pwLimit       *limiter // password changes by signed-in users, keyed by user
+	tokenLimit    *counter // access tokens: requests per minute
+	linkLimit     *counter // reset and invite links, per client address
 }
 
 // New returns the auth service. Register its routes with Routes.
 func New(d *db.DB, cfg config.Config) *Service {
 	s := &Service{db: d, cfg: cfg, now: func() time.Time { return time.Now().UTC() }}
 	s.limit = newLimiter(func() time.Time { return s.now() })
+	now := func() time.Time { return s.now() }
+	s.pwLimit = newLimiter(now)
+	s.tokenLimit = newCounter(now, tokenMaxPerMinute, time.Minute)
+	s.linkLimit = newCounter(now, 30, 15*time.Minute) // 30 reset/invite attempts per client per 15 minutes
+	s.AddAuthenticator(s.bearer)
 	return s
 }
+
+// SetupHook runs inside the first-run setup transaction, after the household
+// and its owner exist (the inventory uses it to create a starter home).
+type SetupHook func(ctx context.Context, tx *sql.Tx, householdID string) error
+
+// AddSetupHook registers a SetupHook. Call it before serving.
+func (s *Service) AddSetupHook(h SetupHook) { s.setupHooks = append(s.setupHooks, h) }
 
 // AddAuthenticator adds another way to sign in (J9.1: bearer access
 // tokens). Authenticators run before the session cookie is considered.
@@ -76,7 +92,20 @@ func (s *Service) Routes(mux *httpapi.Mux) {
 
 	mux.HandleFunc("GET /api/v1/household", RequireSession(ActionHouseholdRead, s.getHousehold))
 	mux.HandleFunc("PATCH /api/v1/household", RequireSession(ActionHouseholdEdit, s.patchHousehold))
+	mux.HandleFunc("DELETE /api/v1/household", RequireSession(ActionHouseholdDrop, s.deleteHousehold))
+
+	mux.HandleFunc("GET /api/v1/members", RequireSession(ActionHouseholdRead, s.listMembers))
+	mux.HandleFunc("PATCH /api/v1/members/{user_id}", RequireSession(ActionMembersManage, s.patchMember))
+	mux.HandleFunc("DELETE /api/v1/members/{user_id}", RequireSession(ActionMembersManage, s.deleteMember))
 	mux.HandleFunc("POST /api/v1/members/{user_id}/reset-link", RequireSession(ActionMembersManage, s.createResetLink))
+	mux.HandleFunc("POST /api/v1/invites", RequireSession(ActionMembersManage, s.createInvite))
+	mux.HandleFunc("DELETE /api/v1/invites/{id}", RequireSession(ActionMembersManage, s.revokeInvite))
+	mux.HandleFunc("GET /api/v1/invites/{token}", s.getInvite)
+	mux.HandleFunc("POST /api/v1/invites/{token}/accept", s.acceptInvite)
+
+	mux.HandleFunc("GET /api/v1/tokens", RequireSession(ActionTokensManage, s.listTokens))
+	mux.HandleFunc("POST /api/v1/tokens", RequireSession(ActionTokensManage, s.createToken))
+	mux.HandleFunc("DELETE /api/v1/tokens/{id}", RequireSession(ActionTokensManage, s.revokeToken))
 }
 
 func (s *Service) ts(t time.Time) string { return t.UTC().Format(timeLayout) }
@@ -166,10 +195,19 @@ func (s *Service) authenticate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		for _, a := range s.authenticator {
 			id, ok, err := a(r)
+			var apiErr *httpapi.Error
+			if errors.As(err, &apiErr) { // e.g. 429 for a token over its limit
+				httpapi.WriteError(w, apiErr)
+				return
+			}
 			if err != nil {
 				break
 			}
 			if ok {
+				if id.Source == SourceToken && tokenBlocked(r.URL.Path) {
+					httpapi.WriteError(w, httpapi.NewError(httpapi.CodeForbidden, "Access tokens cannot use this endpoint."))
+					return
+				}
 				next.ServeHTTP(w, r.WithContext(WithIdentity(r.Context(), id)))
 				return
 			}
@@ -239,4 +277,21 @@ func (s *Service) startSession(ctx context.Context, q *sqlc.Queries, w http.Resp
 	}
 	s.setCookie(w, r, token, expires)
 	return nil
+}
+
+// Endpoints an access token can never reach, whatever a handler says: the
+// account, members, tokens, AI settings and sign-in. Defence in depth on top
+// of RequireSession.
+var tokenBlockedPrefixes = []string{
+	"/api/v1/me", "/api/v1/auth", "/api/v1/setup", "/api/v1/household", "/api/v1/members",
+	"/api/v1/invites", "/api/v1/tokens", "/api/v1/settings",
+}
+
+func tokenBlocked(path string) bool {
+	for _, p := range tokenBlockedPrefixes {
+		if path == p || strings.HasPrefix(path, p+"/") {
+			return true
+		}
+	}
+	return false
 }

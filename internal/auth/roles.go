@@ -41,11 +41,13 @@ const (
 
 	ActionInventoryRead  Action = "inventory.read"  // lists, details, search, history, photos
 	ActionInventoryWrite Action = "inventory.write" // add and change items, places, boxes, lines, photos
+	ActionHomesManage    Action = "homes.manage"    // create, rename, archive homes
 	ActionTokensManage   Action = "tokens.manage"   // the user's own access tokens
 	ActionHouseholdRead  Action = "household.read"
 	ActionHouseholdEdit  Action = "household.edit" // name, language, currency, warranty, AI paused
 	ActionMembersManage  Action = "members.manage" // members, invites, reset links
-	ActionAISettings     Action = "ai.settings"
+	ActionAIRead         Action = "ai.read"        // the AI profiles, without tokens
+	ActionAISettings     Action = "ai.settings"    // change or clear them
 	ActionExport         Action = "export"
 	ActionHouseholdDrop  Action = "household.delete"
 )
@@ -57,10 +59,12 @@ var minRole = map[Action]Role{
 	ActionSession:        RoleViewer,
 	ActionInventoryRead:  RoleViewer,
 	ActionInventoryWrite: RoleMember,
+	ActionHomesManage:    RoleAdmin,
 	ActionTokensManage:   RoleMember,
 	ActionHouseholdRead:  RoleViewer,
 	ActionHouseholdEdit:  RoleAdmin,
 	ActionMembersManage:  RoleAdmin,
+	ActionAIRead:         RoleViewer,
 	ActionAISettings:     RoleAdmin,
 	ActionExport:         RoleAdmin,
 	ActionHouseholdDrop:  RoleOwner,

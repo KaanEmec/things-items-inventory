@@ -88,3 +88,75 @@ FROM invites WHERE kind = 'password_reset' AND token_hash = ?;
 -- scope: global
 UPDATE invites SET used_at = ?, used_by = ?, updated_at = ?
 WHERE id = ? AND used_at IS NULL AND revoked_at IS NULL;
+
+-- name: ListMembers :many
+SELECT m.user_id, u.name, u.email, m.role, m.last_active_at
+FROM memberships m JOIN users u ON u.id = m.user_id
+WHERE m.household_id = ?
+ORDER BY m.created_at, m.user_id;
+
+-- name: CountOwners :one
+SELECT COUNT(*) FROM memberships WHERE household_id = ? AND role = 'owner';
+
+-- name: UpdateMemberRole :execrows
+UPDATE memberships SET role = ? WHERE household_id = ? AND user_id = ?;
+
+-- name: DeleteMembership :execrows
+DELETE FROM memberships WHERE household_id = ? AND user_id = ?;
+
+-- name: DeleteMemberSessions :exec
+DELETE FROM sessions WHERE household_id = ? AND user_id = ?;
+
+-- name: DeleteHouseholdSessions :exec
+DELETE FROM sessions WHERE household_id = ?;
+
+-- name: DeleteMemberAccessTokens :exec
+DELETE FROM access_tokens WHERE household_id = ? AND user_id = ?;
+
+-- name: DeleteHousehold :execrows
+DELETE FROM households WHERE id = ?;
+
+-- name: CreateInvite :exec
+INSERT INTO invites (id, household_id, created_at, updated_at, kind, role, token_hash, expires_at, created_by)
+VALUES (?, ?, ?, ?, 'invite', ?, ?, ?, ?);
+
+-- name: ListPendingInvites :many
+SELECT id, role, expires_at FROM invites
+WHERE household_id = ? AND kind = 'invite' AND used_at IS NULL AND revoked_at IS NULL AND expires_at > ?
+ORDER BY created_at, id;
+
+-- name: RevokeInvite :execrows
+UPDATE invites SET revoked_at = ?, updated_at = ?
+WHERE household_id = ? AND id = ? AND kind = 'invite' AND used_at IS NULL AND revoked_at IS NULL;
+
+-- name: GetInviteByTokenHash :one
+-- scope: global (an invite link is opened without a session)
+SELECT i.id, i.household_id, i.role, i.expires_at, i.used_at, i.revoked_at, h.name AS household_name
+FROM invites i JOIN households h ON h.id = i.household_id
+WHERE i.kind = 'invite' AND i.token_hash = ?;
+
+-- name: CreateAccessToken :exec
+INSERT INTO access_tokens (id, household_id, created_at, updated_at, user_id, name, scope, token_hash, hint, expires_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+-- name: ListAccessTokens :many
+SELECT id, name, scope, hint, last_used_at, expires_at, created_at FROM access_tokens
+WHERE household_id = ? AND user_id = ? AND revoked_at IS NULL
+ORDER BY created_at, id;
+
+-- name: RevokeAccessToken :execrows
+UPDATE access_tokens SET revoked_at = ?, updated_at = ?
+WHERE household_id = ? AND user_id = ? AND id = ? AND revoked_at IS NULL;
+
+-- name: GetAccessTokenByHash :one
+-- scope: global (resolving the bearer token is how the household becomes known)
+SELECT t.id AS token_id, t.name AS token_name, t.scope, t.household_id, t.user_id, t.last_used_at, t.expires_at, t.revoked_at,
+       u.name AS user_name, u.email AS user_email, m.role
+FROM access_tokens t
+JOIN users u ON u.id = t.user_id
+JOIN memberships m ON m.household_id = t.household_id AND m.user_id = t.user_id
+WHERE t.token_hash = ?;
+
+-- name: TouchAccessToken :exec
+-- scope: global
+UPDATE access_tokens SET last_used_at = ? WHERE id = ?;

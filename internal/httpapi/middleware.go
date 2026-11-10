@@ -66,12 +66,27 @@ func logRequests(next http.Handler) http.Handler {
 		}
 		slog.Info("request",
 			"method", r.Method,
-			"path", r.URL.Path,
+			"path", logPath(r.URL.Path),
 			"status", sw.status,
 			"duration", time.Since(start),
 			"request_id", r.Header.Get("X-Request-ID"),
 		)
 	})
+}
+
+// logPath hides secrets that travel in the path: an invite token in
+// /api/v1/invites/{token}[/accept]. (DELETE /invites/{id} is redacted too,
+// which costs nothing.)
+func logPath(p string) string {
+	rest, ok := strings.CutPrefix(p, "/api/v1/invites/")
+	if !ok {
+		return p
+	}
+	_, tail, _ := strings.Cut(rest, "/")
+	if tail != "" {
+		tail = "/" + tail
+	}
+	return "/api/v1/invites/{token}" + tail
 }
 
 // recoverPanics turns a panic in a handler into an internal error.

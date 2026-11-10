@@ -15,6 +15,8 @@ const (
 	CodeForbidden    = "forbidden"
 	CodeNotFound     = "not_found"
 	CodeConflict     = "conflict"
+	CodeNotEmpty     = "not_empty"
+	CodeInvalid      = "invalid"
 	CodeTooLarge     = "too_large"
 	CodeRateLimited  = "rate_limited"
 	CodeInternal     = "internal"
@@ -26,6 +28,8 @@ var statusByCode = map[string]int{
 	CodeForbidden:    http.StatusForbidden,
 	CodeNotFound:     http.StatusNotFound,
 	CodeConflict:     http.StatusConflict,
+	CodeNotEmpty:     http.StatusConflict,
+	CodeInvalid:      http.StatusUnprocessableEntity,
 	CodeTooLarge:     http.StatusRequestEntityTooLarge,
 	CodeRateLimited:  http.StatusTooManyRequests,
 	CodeInternal:     http.StatusInternalServerError,
@@ -56,6 +60,21 @@ func NewError(code, message string) *Error { return &Error{Code: code, Message: 
 func BadRequest(message string) *Error { return NewError(CodeBadRequest, message) }
 func NotFound(message string) *Error   { return NewError(CodeNotFound, message) }
 func Conflict(message string) *Error   { return NewError(CodeConflict, message) }
+
+// Unprocessable is an invalid (422) error: the request is well formed but
+// asks for something the data does not allow (a cycle, a missing target).
+func Unprocessable(message string, fields map[string]string) *Error {
+	e := NewError(CodeInvalid, message)
+	e.Fields = fields
+	return e
+}
+
+// NotEmpty is a not_empty (409) error; fields carry what is still inside.
+func NotEmpty(message string, fields map[string]string) *Error {
+	e := NewError(CodeNotEmpty, message)
+	e.Fields = fields
+	return e
+}
 
 // Invalid is a bad_request carrying per-field messages.
 func Invalid(fields map[string]string) *Error {

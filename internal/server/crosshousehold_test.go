@@ -47,6 +47,9 @@ var publicRoutes = map[string]string{
 	"POST /api/v1/setup":      "first-run setup, only while no user exists",
 	"POST /api/v1/auth/login": "login",
 	"POST /api/v1/auth/reset": "one-time reset link",
+
+	"GET /api/v1/invites/{token}":         "invite link preview; the secret token is the credential",
+	"POST /api/v1/invites/{token}/accept": "invite link accept; the secret token is the credential",
 }
 
 var paramRe = regexp.MustCompile(`\{[^}]+\}`)
@@ -129,11 +132,12 @@ func checkCrossHousehold(t *testing.T, d *db.DB, features []Feature) (violations
 		}
 		for _, v := range candidates {
 			p := paramRe.ReplaceAllString(path, v)
+			ensureHousehold(t, d, hA, userA) // an earlier route (DELETE /household) may have removed it
 			status, body := send(t, srv, method, p, sessionFor(t, d, userA, hA))
 			switch {
 			case status >= 500:
 				violate("%s with %q: server error %d", pattern, v, status)
-			case hasParams && status != 404 && status != 400 && status != 422:
+			case hasParams && publicRoutes[pattern] == "" && status != 404 && status != 400 && status != 422:
 				violate("%s with %q: status %d, want 404 for a row of another household", pattern, v, status)
 			}
 			for _, m := range markers {
@@ -215,4 +219,18 @@ func seedUser(t *testing.T, d *db.DB, name, email, householdID, role string) str
 		t.Fatal(err)
 	}
 	return uid
+}
+
+// ensureHousehold recreates household A and its owner membership when a
+// route deleted them.
+func ensureHousehold(t *testing.T, d *db.DB, householdID, ownerID string) {
+	t.Helper()
+	if _, err := d.Write.Exec(`INSERT OR IGNORE INTO households (id, name, created_at, updated_at) VALUES (?, 'Household A', ?, ?)`,
+		householdID, stamp, stamp); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := d.Write.Exec(`INSERT OR IGNORE INTO memberships (household_id, user_id, role, created_at) VALUES (?, ?, 'owner', ?)`,
+		householdID, ownerID, stamp); err != nil {
+		t.Fatal(err)
+	}
 }

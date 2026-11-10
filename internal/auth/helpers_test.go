@@ -134,3 +134,9 @@ func addMember(t *testing.T, d *db.DB, userID, householdID, role string) {
 }
 
 func ts(t time.Time) string { return t.UTC().Format("2006-01-02T15:04:05.000Z") }
+
+func (c *client) do2(method, path string) (string, int) {
+	c.t.Helper()
+	s, b, _ := c.do(method, path, "")
+	return b, s
+}

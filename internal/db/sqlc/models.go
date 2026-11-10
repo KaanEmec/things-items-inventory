@@ -8,6 +8,65 @@ import (
 	"database/sql"
 )
 
+type AccessToken struct {
+	ID          string
+	HouseholdID string
+	CreatedAt   string
+	UpdatedAt   string
+	UserID      string
+	Name        string
+	Scope       string
+	TokenHash   string
+	Hint        string
+	LastUsedAt  sql.NullString
+	ExpiresAt   sql.NullString
+	RevokedAt   sql.NullString
+}
+
+type AiProfile struct {
+	HouseholdID  string
+	Role         string
+	BaseUrl      string
+	TokenEnc     []byte
+	TokenHint    sql.NullString
+	Model        sql.NullString
+	SameAsVision int64
+	OutputMode   sql.NullString
+	Capabilities string
+	TestResult   sql.NullString
+	TestedAt     sql.NullString
+	FailingSince sql.NullString
+	UpdatedBy    sql.NullString
+	UpdatedAt    string
+}
+
+type ContentsLine struct {
+	ID          string
+	HouseholdID string
+	CreatedAt   string
+	UpdatedAt   string
+	DeletedAt   sql.NullString
+	PlaceID     string
+	Name        string
+	Quantity    int64
+	Category    sql.NullString
+	WorthItem   int64
+	PhotoID     sql.NullString
+	Ai          int64
+	ItemID      sql.NullString
+	CreatedBy   sql.NullString
+}
+
+type Home struct {
+	ID          string
+	HouseholdID string
+	CreatedAt   string
+	UpdatedAt   string
+	Name        string
+	Sort        int64
+	ArchivedAt  sql.NullString
+}
+
 type Household struct {
 	ID                    string
 	Name                  string
@@ -36,6 +95,41 @@ type Invite struct {
 	RevokedAt   sql.NullString
 }
 
+type Item struct {
+	ID             string
+	HouseholdID    string
+	CreatedAt      string
+	UpdatedAt      string
+	DeletedAt      sql.NullString
+	PlaceID        sql.NullString
+	Name           string
+	Category       string
+	Brand          sql.NullString
+	Model          sql.NullString
+	Serial         sql.NullString
+	Color          sql.NullString
+	Quantity       int64
+	Condition      sql.NullString
+	Notes          sql.NullString
+	Status         string
+	Attributes     string
+	AiFields       string
+	AiDraft        sql.NullString
+	AiState        sql.NullString
+	Draft          int64
+	Source         string
+	ImportID       sql.NullString
+	PurchaseDate   sql.NullString
+	PriceMinor     sql.NullInt64
+	Currency       sql.NullString
+	Seller         sql.NullString
+	WarrantyEnd    sql.NullString
+	WarrantySource sql.NullString
+	LastSeenAt     string
+	CreatedBy      sql.NullString
+	UpdatedBy      sql.NullString
+}
+
 type Job struct {
 	ID          string
 	HouseholdID string
@@ -62,6 +156,58 @@ type Membership struct {
 	PackingBoxID sql.NullString
 	LastActiveAt sql.NullString
 	CreatedAt    string
+}
+
+type Photo struct {
+	ID          string
+	HouseholdID string
+	CreatedAt   string
+	UpdatedAt   string
+	Sha256      string
+	Mime        string
+	Ext         string
+	Bytes       int64
+	Width       sql.NullInt64
+	Height      sql.NullInt64
+	Derivatives int64
+	CreatedBy   sql.NullString
+}
+
+type PhotoLink struct {
+	ID          string
+	HouseholdID string
+	CreatedAt   string
+	UpdatedAt   string
+	PhotoID     string
+	ItemID      sql.NullString
+	PlaceID     sql.NullString
+	Role        string
+	Sort        int64
+}
+
+type Place struct {
+	ID             string
+	HouseholdID    string
+	CreatedAt      string
+	UpdatedAt      string
+	DeletedAt      sql.NullString
+	HomeID         sql.NullString
+	ParentID       sql.NullString
+	Kind           string
+	Name           string
+	Sort           int64
+	Path           string
+	Lineage        string
+	GoesToID       sql.NullString
+	Color          sql.NullString
+	DailyUse       int64
+	Note           sql.NullString
+	BoxNumber      sql.NullInt64
+	BoxStatus      sql.NullString
+	Handling       string
+	PackedAt       sql.NullString
+	PackedBy       sql.NullString
+	LabelPrintedAt sql.NullString
 }
 
 type Session struct {

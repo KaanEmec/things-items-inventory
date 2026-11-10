@@ -9,10 +9,13 @@ import (
 	"io/fs"
 	"net/http"
 
+	"github.com/kaanemec/things-items-inventory/internal/ai"
 	"github.com/kaanemec/things-items-inventory/internal/auth"
 	"github.com/kaanemec/things-items-inventory/internal/config"
 	"github.com/kaanemec/things-items-inventory/internal/db"
 	"github.com/kaanemec/things-items-inventory/internal/httpapi"
+	"github.com/kaanemec/things-items-inventory/internal/inventory"
+	"github.com/kaanemec/things-items-inventory/internal/photos"
 )
 
 // SeedResult is what a feature's Seed reports about the rows it created.
@@ -44,8 +47,24 @@ type Feature struct {
 // cross-household test, with no change to the test.
 func Features(d *db.DB, cfg config.Config) []Feature {
 	authSvc := auth.New(d, cfg)
+	authSvc.AddSetupHook(inventory.SeedStarter)
+	inventorySvc := inventory.New(d)
+	aiSvc := ai.NewService(d, cfg)
+	photoSvc := photos.New(d, cfg)
 	return []Feature{
 		{Name: "auth", Routes: authSvc.Routes},
+		{Name: "ai", Routes: aiSvc.Routes, Seed: func(ctx context.Context, d *db.DB, hid string) (SeedResult, error) {
+			m, err := aiSvc.Seed(ctx, d, hid)
+			return SeedResult{Markers: m}, err
+		}},
+		{Name: "inventory", Routes: inventorySvc.Routes, Seed: func(ctx context.Context, d *db.DB, hid string) (SeedResult, error) {
+			paths, markers, err := inventory.SeedTestData(ctx, d, hid)
+			return SeedResult{PathValues: paths, Markers: markers}, err
+		}},
+		{Name: "photos", Routes: photoSvc.Routes, Seed: func(ctx context.Context, d *db.DB, hid string) (SeedResult, error) {
+			paths, markers, err := photoSvc.Seed(ctx, d, hid)
+			return SeedResult{PathValues: paths, Markers: markers}, err
+		}},
 	}
 }
 

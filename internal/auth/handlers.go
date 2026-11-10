@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"net/http"
@@ -96,7 +97,15 @@ func (s *Service) postSetup(w http.ResponseWriter, r *http.Request) {
 		httpapi.WriteError(w, httpapi.Invalid(fields))
 		return
 	}
-	hash, err := HashPassword(in.Password) // slow: done before taking the write connection
+	// Cheap check first: once set up, a request must not cost a 64 MiB hash.
+	if n, err := sqlc.New(s.db.Read).CountUsers(r.Context()); err != nil {
+		httpapi.WriteError(w, err)
+		return
+	} else if n > 0 {
+		httpapi.WriteError(w, errSetupDone)
+		return
+	}
+	hash, err := HashPasswordCtx(r.Context(), in.Password) // slow: done before taking the write connection
 	if err != nil {
 		httpapi.WriteError(w, err)
 		return
@@ -123,6 +132,11 @@ func (s *Service) postSetup(w http.ResponseWriter, r *http.Request) {
 		if err := q.CreateMembership(ctx, sqlc.CreateMembershipParams{HouseholdID: householdID, UserID: userID,
 			Role: RoleOwner.String(), CreatedAt: now}); err != nil {
 			return err
+		}
+		for _, hook := range s.setupHooks {
+			if err := hook(ctx, tx, householdID); err != nil {
+				return err
+			}
 		}
 		return s.startSession(ctx, q, w, r, userID, householdID)
 	})
@@ -153,7 +167,7 @@ func (s *Service) login(w http.ResponseWriter, r *http.Request) {
 		httpapi.WriteError(w, errBadLogin)
 		return
 	}
-	if wait := s.limit.retryAfter(email, client); wait > 0 {
+	if wait := s.limit.begin(email, client); wait > 0 { // counts this attempt; undone on success
 		w.Header().Set("Retry-After", itoa(int(wait.Seconds())+1))
 		httpapi.WriteError(w, httpapi.NewError(httpapi.CodeRateLimited, "Too many attempts. Wait a few minutes and try again."))
 		return
@@ -169,13 +183,16 @@ func (s *Service) login(w http.ResponseWriter, r *http.Request) {
 		httpapi.WriteError(w, err)
 		return
 	}
-	ok, verr := VerifyPassword(in.Password, hash)
+	ok, verr := VerifyPasswordCtx(ctx, in.Password, hash)
+	if verr != nil && ctx.Err() != nil {
+		httpapi.WriteError(w, verr)
+		return
+	}
 	if verr != nil || !ok || err != nil { // err != nil: unknown email, the dummy verify only spent the time
-		s.limit.fail(email, client)
 		httpapi.WriteError(w, errBadLogin)
 		return
 	}
-	s.limit.success(email)
+	s.limit.undo(email, client)
 
 	households, err := q.ListUserHouseholds(ctx, user.ID)
 	if err != nil {
@@ -236,13 +253,26 @@ func (s *Service) reset(w http.ResponseWriter, r *http.Request) {
 		httpapi.WriteError(w, errBadReset)
 		return
 	}
-	hash, err := HashPassword(in.Password)
+	ctx := r.Context()
+	if !s.linkLimit.allow(s.clientAddr(r)) {
+		httpapi.WriteError(w, httpapi.NewError(httpapi.CodeRateLimited, "Too many attempts. Wait a few minutes and try again."))
+		return
+	}
+	now := s.now()
+	// Validate the token before spending a hash on it (re-checked in the transaction).
+	if inv, err := sqlc.New(s.db.Read).GetResetInviteByTokenHash(ctx, hashToken(in.Token)); err != nil || !resetUsable(inv, now) {
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			httpapi.WriteError(w, err)
+			return
+		}
+		httpapi.WriteError(w, errBadReset)
+		return
+	}
+	hash, err := HashPasswordCtx(ctx, in.Password)
 	if err != nil {
 		httpapi.WriteError(w, err)
 		return
 	}
-	ctx := r.Context()
-	now := s.now()
 	err = s.db.Tx(ctx, func(tx *sql.Tx) error {
 		q := sqlc.New(tx)
 		inv, err := q.GetResetInviteByTokenHash(ctx, hashToken(in.Token))
@@ -251,8 +281,7 @@ func (s *Service) reset(w http.ResponseWriter, r *http.Request) {
 		} else if err != nil {
 			return err
 		}
-		exp, perr := time.Parse(timeLayout, inv.ExpiresAt)
-		if perr != nil || !now.Before(exp) || inv.UsedAt.Valid || inv.RevokedAt.Valid || !inv.UserID.Valid {
+		if !resetUsable(inv, now) {
 			return errBadReset
 		}
 		n, err := q.UseResetInvite(ctx, sqlc.UseResetInviteParams{
@@ -276,10 +305,15 @@ func (s *Service) reset(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func resetUsable(inv sqlc.GetResetInviteByTokenHashRow, now time.Time) bool {
+	exp, err := time.Parse(timeLayout, inv.ExpiresAt)
+	return err == nil && now.Before(exp) && !inv.UsedAt.Valid && !inv.RevokedAt.Valid && inv.UserID.Valid
+}
+
 // createResetLink lets an owner or admin make a one-time reset link for a
-// member of the active household. An admin may only reset members and
-// viewers; an owner may reset anyone. Note the link sets the person's one
-// global password, so it also covers their other households.
+// member of the active household, but only when that household is the
+// person's only one (their password is global). An admin may only reset
+// members and viewers; an owner may reset anyone.
 func (s *Service) createResetLink(w http.ResponseWriter, r *http.Request) {
 	ident := MustIdentity(r.Context())
 	ctx := r.Context()
@@ -296,6 +330,16 @@ func (s *Service) createResetLink(w http.ResponseWriter, r *http.Request) {
 		httpapi.WriteError(w, httpapi.NewError(httpapi.CodeForbidden, "Only an owner can reset the password of an admin or owner."))
 		return
 	}
+	// A password is global: if this person also belongs to another household,
+	// an admin here must not be able to take the whole account over.
+	if hs, err := sqlc.New(s.db.Read).ListUserHouseholds(ctx, target); err != nil {
+		httpapi.WriteError(w, err)
+		return
+	} else if len(hs) > 1 {
+		httpapi.WriteError(w, httpapi.NewError(httpapi.CodeForbidden,
+			"This person belongs to more than one household, so only the server administrator can reset their password: run `inventory reset-password <email>` on the server."))
+		return
+	}
 	link, expires, err := s.issueResetLink(ctx, sqlc.New(s.db.Write), ident.HouseholdID, target, ident.UserID)
 	if err != nil {
 		httpapi.WriteError(w, err)
@@ -308,7 +352,7 @@ func (s *Service) createResetLink(w http.ResponseWriter, r *http.Request) {
 // stores a new one. The returned link carries the token in the URL fragment
 // (never sent to the server, so it stays out of request logs); it has the
 // public URL in front when one is configured.
-func (s *Service) issueResetLink(ctx contextT, q *sqlc.Queries, householdID, userID, createdBy string) (string, time.Time, error) {
+func (s *Service) issueResetLink(ctx context.Context, q *sqlc.Queries, householdID, userID, createdBy string) (string, time.Time, error) {
 	now := s.now()
 	expires := now.Add(resetLifetime)
 	token, hash := newToken()
@@ -323,5 +367,5 @@ func (s *Service) issueResetLink(ctx contextT, q *sqlc.Queries, householdID, use
 	if err != nil {
 		return "", time.Time{}, err
 	}
-	return s.cfg.PublicURL + "/reset#token=" + token, expires, nil
+	return s.cfg.PublicURL + "/reset#" + token, expires, nil
 }

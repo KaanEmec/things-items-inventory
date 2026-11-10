@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/subtle"
 	"encoding/base64"
@@ -47,6 +48,45 @@ func CheckPasswordRules(pw string) string {
 		return "Use at least 10 characters."
 	}
 	return ""
+}
+
+// hashSlots limits how many argon2 computations (64 MiB each) run at once in
+// the whole process, so a burst of logins or resets can not exhaust memory.
+var hashSlots = make(chan struct{}, 3)
+
+// acquireHashSlot waits for a free slot or the context to end.
+func acquireHashSlot(ctx context.Context) (release func(), err error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	select {
+	case hashSlots <- struct{}{}:
+		return func() { <-hashSlots }, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
+// HashPasswordCtx is HashPassword that waits for a hashing slot and gives up
+// when ctx ends. Request handlers use this form.
+func HashPasswordCtx(ctx context.Context, pw string) (string, error) {
+	release, err := acquireHashSlot(ctx)
+	if err != nil {
+		return "", err
+	}
+	defer release()
+	return HashPassword(pw)
+}
+
+// VerifyPasswordCtx is VerifyPassword that waits for a hashing slot and gives
+// up when ctx ends. Request handlers use this form.
+func VerifyPasswordCtx(ctx context.Context, pw, phc string) (bool, error) {
+	release, err := acquireHashSlot(ctx)
+	if err != nil {
+		return false, err
+	}
+	defer release()
+	return VerifyPassword(pw, phc)
 }
 
 // HashPassword returns an argon2id hash of pw in PHC string format:

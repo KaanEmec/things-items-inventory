@@ -313,7 +313,7 @@ func TestPasswordReset(t *testing.T) {
 		ExpiresAt string `json:"expires_at"`
 	}
 	admin.json("POST", "/api/v1/members/"+memberID+"/reset-link", "", 201, &link)
-	const prefix = "https://x.example/reset#token="
+	const prefix = "https://x.example/reset#"
 	if !strings.HasPrefix(link.URL, prefix) {
 		t.Fatalf("link: %q", link.URL)
 	}
@@ -366,10 +366,10 @@ func TestResetLinkForEmailCLI(t *testing.T) {
 	hid := seedHousehold(t, e.d, "H")
 	seedUser(t, e.d, "Olga", "olga@example.com", hid, "owner")
 	link, _, err := auth.ResetLinkForEmail(context.Background(), e.d, config.Config{}, "OLGA@example.com")
-	if err != nil || !strings.HasPrefix(link, "/reset#token=") {
+	if err != nil || !strings.HasPrefix(link, "/reset#") {
 		t.Fatalf("%q %v", link, err)
 	}
-	if s := e.client().status("POST", "/api/v1/auth/reset", `{"token":"`+strings.TrimPrefix(link, "/reset#token=")+`","password":"a brand new password"}`); s != 204 {
+	if s := e.client().status("POST", "/api/v1/auth/reset", `{"token":"`+strings.TrimPrefix(link, "/reset#")+`","password":"a brand new password"}`); s != 204 {
 		t.Fatalf("reset via CLI link: %d", s)
 	}
 	if _, _, err := auth.ResetLinkForEmail(context.Background(), e.d, config.Config{}, "nobody@example.com"); err == nil {
@@ -536,7 +536,7 @@ func TestSecretsStayOutOfLogs(t *testing.T) {
 	e.d.Read.QueryRow(`SELECT id FROM users WHERE email='mia@example.com'`).Scan(&memberID)
 	var link struct{ URL string }
 	c.json("POST", "/api/v1/members/"+memberID+"/reset-link", "", 201, &link)
-	token := strings.TrimPrefix(link.URL, "/reset#token=")
+	token := strings.TrimPrefix(link.URL, "/reset#")
 	e.client().do("POST", "/api/v1/auth/reset", `{"token":"`+token+`","password":"a brand new password"}`)
 
 	logs := buf.String()
@@ -547,5 +547,128 @@ func TestSecretsStayOutOfLogs(t *testing.T) {
 		if secret == "" || strings.Contains(logs, secret) {
 			t.Errorf("logs contain the %s (or it was empty): %s", name, logs)
 		}
+	}
+}
+
+func TestResetLinkRefusedForPeopleInOtherHouseholds(t *testing.T) {
+	e := newEnv(t, config.Config{})
+	h1, h2 := seedHousehold(t, e.d, "One"), seedHousehold(t, e.d, "Two")
+	seedUser(t, e.d, "Adam", "adam@example.com", h1, "admin")
+	solo := seedUser(t, e.d, "Mia", "mia@example.com", h1, "member")
+	both := seedUser(t, e.d, "Sam", "sam@example.com", h1, "viewer")
+	addMember(t, e.d, both, h2, "owner")
+	a := e.client()
+	a.login("adam@example.com")
+	if s, b, _ := a.do("POST", "/api/v1/members/"+both+"/reset-link", ""); s != 403 || !strings.Contains(b, "reset-password") {
+		t.Fatalf("person in two households: %d %s", s, b)
+	}
+	if s := a.status("POST", "/api/v1/members/"+solo+"/reset-link", ""); s != 201 {
+		t.Fatalf("person in one household: %d", s)
+	}
+	var n int
+	e.d.Read.QueryRow(`SELECT COUNT(*) FROM invites WHERE user_id=?`, both).Scan(&n)
+	if n != 0 {
+		t.Fatal("a link was stored for the refused request")
+	}
+}
+
+func TestParallelLoginsCannotAllPass(t *testing.T) {
+	e := newEnv(t, config.Config{})
+	hid := seedHousehold(t, e.d, "H")
+	seedUser(t, e.d, "Bob", "bob@example.com", hid, "member")
+	var wg sync.WaitGroup
+	var wrong, limited atomic.Int32
+	for range 25 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			switch e.client().status("POST", "/api/v1/auth/login", `{"email":"bob@example.com","password":"wrong wrong wrong"}`) {
+			case 401:
+				wrong.Add(1)
+			case 429:
+				limited.Add(1)
+			}
+		}()
+	}
+	wg.Wait()
+	if wrong.Load() > 10 || limited.Load() < 15 {
+		t.Fatalf("401=%d 429=%d: more than 10 guesses got through", wrong.Load(), limited.Load())
+	}
+}
+
+func TestEmailLockoutIsPerClientAddress(t *testing.T) {
+	e := newEnv(t, config.Config{TrustProxy: true})
+	hid := seedHousehold(t, e.d, "H")
+	seedUser(t, e.d, "Bob", "bob@example.com", hid, "member")
+	attacker := []string{"X-Forwarded-For", "203.0.113.9"}
+	for range 10 {
+		e.client().do("POST", "/api/v1/auth/login", `{"email":"bob@example.com","password":"wrong wrong wrong"}`, attacker...)
+	}
+	if s, _, _ := e.client().do("POST", "/api/v1/auth/login", `{"email":"bob@example.com","password":"`+pw+`"}`, attacker...); s != 429 {
+		t.Fatalf("attacker address should be limited: %d", s)
+	}
+	if s, _, _ := e.client().do("POST", "/api/v1/auth/login", `{"email":"bob@example.com","password":"`+pw+`"}`, "X-Forwarded-For", "198.51.100.7"); s != 200 {
+		t.Fatalf("the real owner from another address is locked out: %d", s)
+	}
+}
+
+func TestChangePasswordNotBlockedByLoginFailures(t *testing.T) {
+	e := newEnv(t, config.Config{})
+	hid := seedHousehold(t, e.d, "H")
+	seedUser(t, e.d, "Bob", "bob@example.com", hid, "member")
+	c := e.client()
+	c.login("bob@example.com")
+	for range 12 { // an outsider (same address here) exhausts the login limiter
+		e.client().status("POST", "/api/v1/auth/login", `{"email":"bob@example.com","password":"wrong wrong wrong"}`)
+	}
+	if s := c.status("POST", "/api/v1/me/password", `{"current":"`+pw+`","new":"another long one"}`); s != 204 {
+		t.Fatalf("password change blocked by login failures: %d", s)
+	}
+}
+
+func TestResetEndpointIsRateLimited(t *testing.T) {
+	e := newEnv(t, config.Config{})
+	c := e.client()
+	var got429 bool
+	for range 35 {
+		if c.status("POST", "/api/v1/auth/reset", `{"token":"guess","password":"a brand new password"}`) == 429 {
+			got429 = true
+			break
+		}
+	}
+	if !got429 {
+		t.Fatal("no limit on /auth/reset")
+	}
+}
+
+func TestSetupAfterDoneDoesNotHash(t *testing.T) {
+	e := newEnv(t, config.Config{})
+	e.client().status("POST", "/api/v1/setup", setupBody)
+	// Hold every hashing slot: a request that tried to hash would block, but
+	// a finished setup answers 409 without touching argon2.
+	release := auth.HoldHashSlotsForTest(t)
+	defer release()
+	if s := e.client().status("POST", "/api/v1/setup", setupBody); s != 409 {
+		t.Fatalf("second setup: %d", s)
+	}
+	// Same for a bad reset token and a bad invite.
+	if s := e.client().status("POST", "/api/v1/auth/reset", `{"token":"nope","password":"a brand new password"}`); s != 400 {
+		t.Fatalf("bad reset token: %d", s)
+	}
+	if s := e.client().status("POST", "/api/v1/invites/nope/accept", `{"name":"N","email":"n@example.com","password":"`+pw+`"}`); s != 400 {
+		t.Fatalf("bad invite: %d", s)
+	}
+}
+
+func TestHashSlotsRespectContext(t *testing.T) {
+	release := auth.HoldHashSlotsForTest(t)
+	defer release()
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	if _, err := auth.HashPasswordCtx(ctx, pw); err == nil {
+		t.Fatal("hash ran although every slot was taken")
+	}
+	if _, err := auth.VerifyPasswordCtx(ctx, pw, "$argon2id$v=19$m=65536,t=3,p=1$AAAAAAAAAAAAAAAAAAAAAA$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"); err == nil {
+		t.Fatal("verify ran although every slot was taken")
 	}
 }

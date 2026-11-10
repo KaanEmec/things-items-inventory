@@ -10,6 +10,17 @@ import (
 	"database/sql"
 )
 
+const countOwners = `-- name: CountOwners :one
+SELECT COUNT(*) FROM memberships WHERE household_id = ? AND role = 'owner'
+`
+
+func (q *Queries) CountOwners(ctx context.Context, householdID string) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countOwners, householdID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countUsers = `-- name: CountUsers :one
 
 SELECT COUNT(*) FROM users
@@ -23,6 +34,70 @@ func (q *Queries) CountUsers(ctx context.Context) (int64, error) {
 	var count int64
 	err := row.Scan(&count)
 	return count, err
+}
+
+const createAccessToken = `-- name: CreateAccessToken :exec
+INSERT INTO access_tokens (id, household_id, created_at, updated_at, user_id, name, scope, token_hash, hint, expires_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+`
+
+type CreateAccessTokenParams struct {
+	ID          string
+	HouseholdID string
+	CreatedAt   string
+	UpdatedAt   string
+	UserID      string
+	Name        string
+	Scope       string
+	TokenHash   string
+	Hint        string
+	ExpiresAt   sql.NullString
+}
+
+func (q *Queries) CreateAccessToken(ctx context.Context, arg CreateAccessTokenParams) error {
+	_, err := q.db.ExecContext(ctx, createAccessToken,
+		arg.ID,
+		arg.HouseholdID,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+		arg.UserID,
+		arg.Name,
+		arg.Scope,
+		arg.TokenHash,
+		arg.Hint,
+		arg.ExpiresAt,
+	)
+	return err
+}
+
+const createInvite = `-- name: CreateInvite :exec
+INSERT INTO invites (id, household_id, created_at, updated_at, kind, role, token_hash, expires_at, created_by)
+VALUES (?, ?, ?, ?, 'invite', ?, ?, ?, ?)
+`
+
+type CreateInviteParams struct {
+	ID          string
+	HouseholdID string
+	CreatedAt   string
+	UpdatedAt   string
+	Role        sql.NullString
+	TokenHash   string
+	ExpiresAt   string
+	CreatedBy   string
+}
+
+func (q *Queries) CreateInvite(ctx context.Context, arg CreateInviteParams) error {
+	_, err := q.db.ExecContext(ctx, createInvite,
+		arg.ID,
+		arg.HouseholdID,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+		arg.Role,
+		arg.TokenHash,
+		arg.ExpiresAt,
+		arg.CreatedBy,
+	)
+	return err
 }
 
 const createMembership = `-- name: CreateMembership :exec
@@ -119,6 +194,72 @@ func (q *Queries) DeleteExpiredSessions(ctx context.Context, expiresAt string) e
 	return err
 }
 
+const deleteHousehold = `-- name: DeleteHousehold :execrows
+DELETE FROM households WHERE id = ?
+`
+
+func (q *Queries) DeleteHousehold(ctx context.Context, id string) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteHousehold, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const deleteHouseholdSessions = `-- name: DeleteHouseholdSessions :exec
+DELETE FROM sessions WHERE household_id = ?
+`
+
+func (q *Queries) DeleteHouseholdSessions(ctx context.Context, householdID string) error {
+	_, err := q.db.ExecContext(ctx, deleteHouseholdSessions, householdID)
+	return err
+}
+
+const deleteMemberAccessTokens = `-- name: DeleteMemberAccessTokens :exec
+DELETE FROM access_tokens WHERE household_id = ? AND user_id = ?
+`
+
+type DeleteMemberAccessTokensParams struct {
+	HouseholdID string
+	UserID      string
+}
+
+func (q *Queries) DeleteMemberAccessTokens(ctx context.Context, arg DeleteMemberAccessTokensParams) error {
+	_, err := q.db.ExecContext(ctx, deleteMemberAccessTokens, arg.HouseholdID, arg.UserID)
+	return err
+}
+
+const deleteMemberSessions = `-- name: DeleteMemberSessions :exec
+DELETE FROM sessions WHERE household_id = ? AND user_id = ?
+`
+
+type DeleteMemberSessionsParams struct {
+	HouseholdID string
+	UserID      string
+}
+
+func (q *Queries) DeleteMemberSessions(ctx context.Context, arg DeleteMemberSessionsParams) error {
+	_, err := q.db.ExecContext(ctx, deleteMemberSessions, arg.HouseholdID, arg.UserID)
+	return err
+}
+
+const deleteMembership = `-- name: DeleteMembership :execrows
+DELETE FROM memberships WHERE household_id = ? AND user_id = ?
+`
+
+type DeleteMembershipParams struct {
+	HouseholdID string
+	UserID      string
+}
+
+func (q *Queries) DeleteMembership(ctx context.Context, arg DeleteMembershipParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteMembership, arg.HouseholdID, arg.UserID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const deleteOtherUserSessions = `-- name: DeleteOtherUserSessions :exec
 DELETE FROM sessions WHERE user_id = ? AND id <> ?
 `
@@ -152,6 +293,81 @@ DELETE FROM sessions WHERE user_id = ?
 func (q *Queries) DeleteUserSessions(ctx context.Context, userID string) error {
 	_, err := q.db.ExecContext(ctx, deleteUserSessions, userID)
 	return err
+}
+
+const getAccessTokenByHash = `-- name: GetAccessTokenByHash :one
+SELECT t.id AS token_id, t.name AS token_name, t.scope, t.household_id, t.user_id, t.last_used_at, t.expires_at, t.revoked_at,
+       u.name AS user_name, u.email AS user_email, m.role
+FROM access_tokens t
+JOIN users u ON u.id = t.user_id
+JOIN memberships m ON m.household_id = t.household_id AND m.user_id = t.user_id
+WHERE t.token_hash = ?
+`
+
+type GetAccessTokenByHashRow struct {
+	TokenID     string
+	TokenName   string
+	Scope       string
+	HouseholdID string
+	UserID      string
+	LastUsedAt  sql.NullString
+	ExpiresAt   sql.NullString
+	RevokedAt   sql.NullString
+	UserName    string
+	UserEmail   string
+	Role        string
+}
+
+// scope: global (resolving the bearer token is how the household becomes known)
+func (q *Queries) GetAccessTokenByHash(ctx context.Context, tokenHash string) (GetAccessTokenByHashRow, error) {
+	row := q.db.QueryRowContext(ctx, getAccessTokenByHash, tokenHash)
+	var i GetAccessTokenByHashRow
+	err := row.Scan(
+		&i.TokenID,
+		&i.TokenName,
+		&i.Scope,
+		&i.HouseholdID,
+		&i.UserID,
+		&i.LastUsedAt,
+		&i.ExpiresAt,
+		&i.RevokedAt,
+		&i.UserName,
+		&i.UserEmail,
+		&i.Role,
+	)
+	return i, err
+}
+
+const getInviteByTokenHash = `-- name: GetInviteByTokenHash :one
+SELECT i.id, i.household_id, i.role, i.expires_at, i.used_at, i.revoked_at, h.name AS household_name
+FROM invites i JOIN households h ON h.id = i.household_id
+WHERE i.kind = 'invite' AND i.token_hash = ?
+`
+
+type GetInviteByTokenHashRow struct {
+	ID            string
+	HouseholdID   string
+	Role          sql.NullString
+	ExpiresAt     string
+	UsedAt        sql.NullString
+	RevokedAt     sql.NullString
+	HouseholdName string
+}
+
+// scope: global (an invite link is opened without a session)
+func (q *Queries) GetInviteByTokenHash(ctx context.Context, tokenHash string) (GetInviteByTokenHashRow, error) {
+	row := q.db.QueryRowContext(ctx, getInviteByTokenHash, tokenHash)
+	var i GetInviteByTokenHashRow
+	err := row.Scan(
+		&i.ID,
+		&i.HouseholdID,
+		&i.Role,
+		&i.ExpiresAt,
+		&i.UsedAt,
+		&i.RevokedAt,
+		&i.HouseholdName,
+	)
+	return i, err
 }
 
 const getMembership = `-- name: GetMembership :one
@@ -243,6 +459,142 @@ func (q *Queries) GetSessionByTokenHash(ctx context.Context, tokenHash string) (
 	return i, err
 }
 
+const listAccessTokens = `-- name: ListAccessTokens :many
+SELECT id, name, scope, hint, last_used_at, expires_at, created_at FROM access_tokens
+WHERE household_id = ? AND user_id = ? AND revoked_at IS NULL
+ORDER BY created_at, id
+`
+
+type ListAccessTokensParams struct {
+	HouseholdID string
+	UserID      string
+}
+
+type ListAccessTokensRow struct {
+	ID         string
+	Name       string
+	Scope      string
+	Hint       string
+	LastUsedAt sql.NullString
+	ExpiresAt  sql.NullString
+	CreatedAt  string
+}
+
+func (q *Queries) ListAccessTokens(ctx context.Context, arg ListAccessTokensParams) ([]ListAccessTokensRow, error) {
+	rows, err := q.db.QueryContext(ctx, listAccessTokens, arg.HouseholdID, arg.UserID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListAccessTokensRow
+	for rows.Next() {
+		var i ListAccessTokensRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Scope,
+			&i.Hint,
+			&i.LastUsedAt,
+			&i.ExpiresAt,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listMembers = `-- name: ListMembers :many
+SELECT m.user_id, u.name, u.email, m.role, m.last_active_at
+FROM memberships m JOIN users u ON u.id = m.user_id
+WHERE m.household_id = ?
+ORDER BY m.created_at, m.user_id
+`
+
+type ListMembersRow struct {
+	UserID       string
+	Name         string
+	Email        string
+	Role         string
+	LastActiveAt sql.NullString
+}
+
+func (q *Queries) ListMembers(ctx context.Context, householdID string) ([]ListMembersRow, error) {
+	rows, err := q.db.QueryContext(ctx, listMembers, householdID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListMembersRow
+	for rows.Next() {
+		var i ListMembersRow
+		if err := rows.Scan(
+			&i.UserID,
+			&i.Name,
+			&i.Email,
+			&i.Role,
+			&i.LastActiveAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPendingInvites = `-- name: ListPendingInvites :many
+SELECT id, role, expires_at FROM invites
+WHERE household_id = ? AND kind = 'invite' AND used_at IS NULL AND revoked_at IS NULL AND expires_at > ?
+ORDER BY created_at, id
+`
+
+type ListPendingInvitesParams struct {
+	HouseholdID string
+	ExpiresAt   string
+}
+
+type ListPendingInvitesRow struct {
+	ID        string
+	Role      sql.NullString
+	ExpiresAt string
+}
+
+func (q *Queries) ListPendingInvites(ctx context.Context, arg ListPendingInvitesParams) ([]ListPendingInvitesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listPendingInvites, arg.HouseholdID, arg.ExpiresAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListPendingInvitesRow
+	for rows.Next() {
+		var i ListPendingInvitesRow
+		if err := rows.Scan(&i.ID, &i.Role, &i.ExpiresAt); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listUserHouseholds = `-- name: ListUserHouseholds :many
 SELECT m.household_id, h.name, m.role
 FROM memberships m JOIN households h ON h.id = m.household_id
@@ -280,6 +632,58 @@ func (q *Queries) ListUserHouseholds(ctx context.Context, userID string) ([]List
 	return items, nil
 }
 
+const revokeAccessToken = `-- name: RevokeAccessToken :execrows
+UPDATE access_tokens SET revoked_at = ?, updated_at = ?
+WHERE household_id = ? AND user_id = ? AND id = ? AND revoked_at IS NULL
+`
+
+type RevokeAccessTokenParams struct {
+	RevokedAt   sql.NullString
+	UpdatedAt   string
+	HouseholdID string
+	UserID      string
+	ID          string
+}
+
+func (q *Queries) RevokeAccessToken(ctx context.Context, arg RevokeAccessTokenParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, revokeAccessToken,
+		arg.RevokedAt,
+		arg.UpdatedAt,
+		arg.HouseholdID,
+		arg.UserID,
+		arg.ID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const revokeInvite = `-- name: RevokeInvite :execrows
+UPDATE invites SET revoked_at = ?, updated_at = ?
+WHERE household_id = ? AND id = ? AND kind = 'invite' AND used_at IS NULL AND revoked_at IS NULL
+`
+
+type RevokeInviteParams struct {
+	RevokedAt   sql.NullString
+	UpdatedAt   string
+	HouseholdID string
+	ID          string
+}
+
+func (q *Queries) RevokeInvite(ctx context.Context, arg RevokeInviteParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, revokeInvite,
+		arg.RevokedAt,
+		arg.UpdatedAt,
+		arg.HouseholdID,
+		arg.ID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const revokeResetInvites = `-- name: RevokeResetInvites :exec
 UPDATE invites SET revoked_at = ?, updated_at = ?
 WHERE household_id = ? AND kind = 'password_reset' AND user_id = ? AND used_at IS NULL AND revoked_at IS NULL
@@ -315,6 +719,21 @@ type SetSessionHouseholdParams struct {
 // scope: global (the caller has already checked the user's membership)
 func (q *Queries) SetSessionHousehold(ctx context.Context, arg SetSessionHouseholdParams) error {
 	_, err := q.db.ExecContext(ctx, setSessionHousehold, arg.HouseholdID, arg.ID, arg.UserID)
+	return err
+}
+
+const touchAccessToken = `-- name: TouchAccessToken :exec
+UPDATE access_tokens SET last_used_at = ? WHERE id = ?
+`
+
+type TouchAccessTokenParams struct {
+	LastUsedAt sql.NullString
+	ID         string
+}
+
+// scope: global
+func (q *Queries) TouchAccessToken(ctx context.Context, arg TouchAccessTokenParams) error {
+	_, err := q.db.ExecContext(ctx, touchAccessToken, arg.LastUsedAt, arg.ID)
 	return err
 }
 
@@ -389,6 +808,24 @@ func (q *Queries) UpdateHousehold(ctx context.Context, arg UpdateHouseholdParams
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const updateMemberRole = `-- name: UpdateMemberRole :execrows
+UPDATE memberships SET role = ? WHERE household_id = ? AND user_id = ?
+`
+
+type UpdateMemberRoleParams struct {
+	Role        string
+	HouseholdID string
+	UserID      string
+}
+
+func (q *Queries) UpdateMemberRole(ctx context.Context, arg UpdateMemberRoleParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateMemberRole, arg.Role, arg.HouseholdID, arg.UserID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const updateUserPassword = `-- name: UpdateUserPassword :exec

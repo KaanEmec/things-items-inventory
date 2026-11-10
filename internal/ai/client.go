@@ -332,11 +332,14 @@ func (c *Client) once(ctx context.Context, cfg Config, method, endpoint string, 
 	var data []byte
 	if err == nil {
 		defer resp.Body.Close()
-		data, err = io.ReadAll(io.LimitReader(resp.Body, 32<<20))
+		data, err = io.ReadAll(io.LimitReader(resp.Body, maxBody))
 	}
 	if err != nil {
 		if ctx.Err() != nil {
 			return 0, nil, nil, ctx.Err()
+		}
+		if be := asBlocked(err); be != nil {
+			return 0, nil, nil, be
 		}
 		if rctx.Err() != nil {
 			return 0, nil, nil, &Error{Kind: KindTimeout, Message: "The endpoint took too long to answer."}

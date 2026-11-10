@@ -38,7 +38,7 @@ func (e *Error) Error() string {
 
 // classify maps an HTTP error response to an Error. body is the raw response.
 func classify(status int, body, token string) *Error {
-	detail := scrub(snippet(body), token)
+	detail := snippet(scrub(body, token))
 	low := strings.ToLower(body)
 	has := func(subs ...string) bool {
 		for _, s := range subs {

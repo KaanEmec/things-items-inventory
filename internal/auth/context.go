@@ -23,10 +23,10 @@ type Identity struct {
 	HouseholdID string // the active household
 	Role        Role   // the user's role in it
 	Source      Source
-	SessionID   string   // SourceSession only
-	TokenID     string   // SourceToken only
-	ReadOnly    bool     // SourceToken with scope read: only GET and HEAD
-	TokenScope  []string // reserved for J9.1
+	SessionID   string // SourceSession only
+	TokenID     string // SourceToken only
+	TokenName   string // SourceToken only: what events show as "via <name>"
+	ReadOnly    bool   // SourceToken with scope read: only GET and HEAD
 }
 
 type ctxKey struct{}
