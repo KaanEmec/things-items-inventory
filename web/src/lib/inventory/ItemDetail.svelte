@@ -4,7 +4,7 @@
   import { can } from '../auth.svelte'
   import { explain } from '../errors'
   import { readReceipt, warrantySourceText } from '../drafts/drafts'
-  import { ago } from '../format'
+  import { ago, formatDay } from '../format'
   import Icon from '../Icon.svelte'
   import { navigate, router } from '../router.svelte'
   import { stream } from '../stream.svelte'
@@ -371,7 +371,7 @@
       {/if}
     </h3>
     <div class="flex flex-col bg-surface py-1">
-      <InlineField label="Bought on" kind="date" value={it.purchase.date?.slice(0, 10) ?? ''} ai={ai('purchase_date')} locked={!canEdit} errorKeys={['purchase_date', 'purchase.date']} save={(t) => change({ purchase: { date: blank(t) } }, { purchase: { date: it.purchase.date } }, 'Purchase date')} />
+      <InlineField label="Bought on" kind="date" value={it.purchase.date?.slice(0, 10) ?? ''} display={formatDay(it.purchase.date)} ai={ai('purchase_date')} locked={!canEdit} errorKeys={['purchase_date', 'purchase.date']} save={(t) => change({ purchase: { date: blank(t) } }, { purchase: { date: it.purchase.date } }, 'Purchase date')} />
       <InlineField
         label="Price"
         kind="number"
@@ -383,7 +383,7 @@
         save={(t) => change({ purchase: { price_minor: toMinor(t) } }, { purchase: { price_minor: it.purchase.price_minor } }, 'Price')}
       />
       <InlineField label="Seller" value={it.purchase.seller ?? ''} ai={ai('seller')} locked={!canEdit} errorKeys={['seller', 'purchase.seller']} save={(t) => change({ purchase: { seller: blank(t) } }, { purchase: { seller: it.purchase.seller } }, 'Seller')} />
-      <InlineField label="Warranty until" kind="date" value={it.warranty.end?.slice(0, 10) ?? ''} ai={ai('warranty_end')} locked={!canEdit} errorKeys={['warranty_end', 'warranty.end']} save={(t) => change({ warranty: { end: blank(t) } }, { warranty: { end: it.warranty.end } }, 'Warranty')} />
+      <InlineField label="Warranty until" kind="date" value={it.warranty.end?.slice(0, 10) ?? ''} display={formatDay(it.warranty.end)} ai={ai('warranty_end')} locked={!canEdit} errorKeys={['warranty_end', 'warranty.end']} save={(t) => change({ warranty: { end: blank(t) } }, { warranty: { end: it.warranty.end } }, 'Warranty')} />
       {#if warrantySourceText(it.warranty.source) && it.warranty.end}
         <p class="m-0 px-4 pb-2 text-[12px] text-muted md:px-6" data-testid="warranty-source">{warrantySourceText(it.warranty.source)}</p>
       {/if}

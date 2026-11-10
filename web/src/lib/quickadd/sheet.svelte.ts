@@ -389,18 +389,20 @@ export class Sheet {
     const row = this.#blankRow()
     row.values.name = n
     this.#carryOver(row)
-    this.#push(row)
-    this.#askSuggest(row)
-    void this.#flush(row)
+    const live = this.#push(row)
+    this.#askSuggest(live)
+    void this.#flush(live)
     return row.id
   }
 
   /** Put a row before the trailing empty one (or replace it) and keep one empty row at the end. */
-  #push(row: Row) {
+  #push(row: Row): Row {
     const last = this.rows[this.rows.length - 1]
     if (last && !last.created && !this.#touched(last) && !(last.values.name ?? '').trim()) this.rows.splice(this.rows.length - 1, 0, row)
     else this.rows.push(row)
     this.#ensureBlank()
+    // The state proxy, not the plain object: later changes (created, suggestions) must reach the screen.
+    return this.rows.find((r) => r.id === row.id)!
   }
 
   /** Rows that have a name: what the phone list shows. */
@@ -447,8 +449,7 @@ export class Sheet {
       if (it.extra && Object.keys(it.extra).length) row.extra = it.extra
       if (!(row.values.name ?? '').trim()) continue
       if (it.values.category) this.#pickedCat.add(row.id)
-      this.#push(row)
-      void this.#flush(row)
+      void this.#flush(this.#push(row))
     }
   }
 

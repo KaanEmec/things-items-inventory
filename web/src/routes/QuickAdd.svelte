@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from 'svelte'
   import { MediaQuery } from 'svelte/reactivity'
   import AiHint from '../lib/AiHint.svelte'
   import { activeHousehold } from '../lib/auth.svelte'
@@ -64,7 +65,7 @@
     const s = sheet
     const b = packing.box
     if (!s || !b) return
-    s.setPlaceDefault(boxPlace(b))
+    untrack(() => s.setPlaceDefault(boxPlace(b)))
   })
 
   async function loadPlaces(s: Sheet) {

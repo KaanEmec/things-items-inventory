@@ -22,6 +22,15 @@ export function ago(iso?: string | null, now = Date.now()): string {
 export const shortDate = (iso: string) =>
   new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
 
+/**
+ * A calendar day ("2026-06-01", or a timestamp starting with one) as "1 Jun 2026" in the browser's language.
+ * Read as UTC so the day never shifts with the time zone. The one formatter for item details, badges and lists.
+ */
+export function formatDay(day: string | null | undefined): string {
+  const d = new Date((day ?? '').slice(0, 10) + 'T12:00:00Z')
+  return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })
+}
+
 export const languages = [
   { value: 'en', label: 'English' },
   { value: 'de', label: 'Deutsch' },

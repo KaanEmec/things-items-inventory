@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { ApiError } from '../api'
+import { buildForm } from './upload'
 import { backoffMs, CaptureQueue, type QueueEntry } from './queue.svelte'
 import { CaptureSession, groupIds } from './session.svelte'
 import { MemoryStore } from './store'
@@ -100,7 +101,7 @@ test('retry with backoff: a failure waits, then succeeds; the blob is dropped fr
   vi.advanceTimersByTime(2000)
   await flush()
   expect(calls).toBe(3)
-  expect(q.get(e.id)).toMatchObject({ state: 'uploaded', blob: null })
+  expect(q.get(e.id)).toMatchObject({ state: 'uploaded' })
   expect(store.rows.size).toBe(0)
   expect(backoffMs(20)).toBe(30_000)
 })
@@ -216,4 +217,11 @@ test('a network error while offline waits for the online event without using a t
   q.setOnline(true)
   await flush()
   expect(q.get(e.id)?.state).toBe('uploaded')
+})
+
+test('a contents photo is sent to the place alone, with no item id', () => {
+  const f = buildForm(entry({ role: 'contents', placeId: 'P1', groupId: 'G9' }))
+  expect(f.get('place_id')).toBe('P1')
+  expect(f.get('item_id')).toBeNull()
+  expect(f.get('role')).toBe('contents')
 })

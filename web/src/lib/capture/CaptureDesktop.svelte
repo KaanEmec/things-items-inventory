@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from 'svelte'
   import { auth } from '../auth.svelte'
   import Icon from '../Icon.svelte'
   import PlaceDialog from '../inventory/PlaceDialog.svelte'
@@ -27,7 +28,8 @@
     if (!packing.loaded) packing.load().catch(() => {})
   })
   $effect(() => {
-    if (packing.box) session.setPlace(boxPlace(packing.box))
+    const b = packing.box
+    if (b) untrack(() => session.setPlace(boxPlace(b)))
   })
 
   let picker: Picker
@@ -119,21 +121,22 @@
 <svelte:window {onpaste} />
 
 <FlowFrame icon="camera" title="Capture" breadcrumb={['Add things']}>
-  <PackingBar />
   {#snippet actions()}
     <Button icon="pin" onclick={() => (placeOpen = true)}>{session.place ? session.place.name : 'Choose place'}</Button>
     <Button icon="package" onclick={() => (contentsOpen = true)}>Box contents</Button>
     <Button variant="primary" icon="image" onclick={() => picker.openLibrary('queue')}>Choose photos</Button>
   {/snippet}
 
-  <div class="flex h-full min-h-[520px]">
+  <div class="flex h-full flex-col">
+  <PackingBar />
+  <div class="flex min-h-[520px] min-h-0 flex-1">
     <!-- Queue pane. -->
     <section
       aria-label="Capture queue"
       ondragover={(e) => (e.preventDefault(), (dragging = true))}
       ondragleave={() => (dragging = false)}
       ondrop={ondrop}
-      class="flex w-[300px] flex-none flex-col border-r border-divider {dragging ? 'bg-accent-row' : 'bg-surface'}"
+      class="flex w-[240px] flex-none flex-col border-r xl:w-[300px] border-divider {dragging ? 'bg-accent-row' : 'bg-surface'}"
     >
       <div class="flex h-[42px] flex-none items-center gap-2 border-b border-divider px-4 text-[12px] font-semibold tracking-[0.06em] text-muted uppercase">
         <Icon name="upload" size={14} />Queue
@@ -197,20 +200,20 @@
               </li>
             {/each}
           </ul>
-          <label class="flex items-center gap-2 text-[13px] text-muted">
+          <label class="flex min-w-0 items-center gap-2 text-[13px] text-muted">
             Photo of
             <select
               value={photo.role}
               disabled={photo.state === 'uploading' || photo.state === 'uploaded'}
               onchange={(ev) => queue.setRole(photo.id, ev.currentTarget.value as Role)}
-              class="h-9 rounded-control border border-border-input bg-surface px-2 text-[13px] text-ink"
+              class="h-9 min-w-0 rounded-control border border-border-input bg-surface px-2 text-[13px] text-ink"
             >
               {#each roles as r}<option value={r}>{roleLabel[r]}</option>{/each}
             </select>
           </label>
           <span class="rounded-full px-2 py-0.5 text-[11px] font-semibold {stateClass[photo.state]}">{stateLabel[photo.state]}</span>
           {#if photo.error && photo.state !== 'uploaded'}<span class="text-[12px] text-muted">{photo.error}</span>{/if}
-          <span class="ml-auto flex gap-2">
+          <span class="ml-auto flex flex-wrap gap-2">
             <Button icon="plus" onclick={() => picker.openLibrary('add')}>Add photo</Button>
             {#if photo.state === 'failed' || (photo.state === 'waiting' && photo.attempts > 0)}<Button onclick={() => queue.retry(photo.id)}>Retry</Button>{/if}
             {#if photo.state === 'waiting' || photo.state === 'failed'}<Button icon="trash" onclick={() => queue.remove(photo.id)}>Remove</Button>{/if}
@@ -226,9 +229,10 @@
     </section>
 
     <!-- Slot for J6.7: the AI draft form. -->
-    <aside aria-label="Draft" class="hidden w-[340px] flex-none border-l border-divider bg-surface lg:block">
+    <aside aria-label="Draft" class="hidden min-h-0 w-[300px] flex-none border-l border-divider bg-surface lg:block xl:w-[340px]">
       <DraftFormSlot itemId={group?.id ?? null} uploaded={group?.state === 'uploaded'} />
     </aside>
+  </div>
   </div>
 </FlowFrame>
 

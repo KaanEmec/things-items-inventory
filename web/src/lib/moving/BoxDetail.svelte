@@ -4,7 +4,7 @@
   import { auth, can } from '../auth.svelte'
   import { ago } from '../format'
   import Icon from '../Icon.svelte'
-  import { sentence, type HistoryEntry } from '../inventory/history'
+  import { actorLabel, sentence, type HistoryEntry } from '../inventory/history'
   import PlacePicker from '../inventory/PlacePicker.svelte'
   import Button from '../ui/Button.svelte'
   import Dialog from '../ui/Dialog.svelte'
@@ -36,8 +36,10 @@
   const marks = Object.keys(HANDLING_LABEL) as Handling[]
 
   $effect(() => {
-    if (open && boxId) load(boxId)
-    else picking = false
+    if (open && boxId) {
+      box = null
+      load(boxId)
+    } else picking = false
   })
 
   async function load(id: string) {
@@ -85,6 +87,16 @@
       showToast(explain(e).message, 'error')
     }
   }
+  /** The history line; a room change names the room instead of "goes to id". */
+  function text(e: HistoryEntry): string {
+    const after = (e.data as { after?: { goes_to_id?: string | null } } | undefined)?.after
+    if (e.kind === 'edited' && after && 'goes_to_id' in after) {
+      const name = rooms.find((r) => r.id === after.goes_to_id)?.name
+      const who = actorLabel(e.actor, auth.user?.id)
+      return name ? `${who} set the room to ${name}` : `${who} cleared the room`
+    }
+    return sentence(e, auth.user?.id)
+  }
   const empty = $derived(!box || (box.items.length === 0 && box.lines.length === 0))
 </script>
 
@@ -120,7 +132,7 @@
           <p class="m-0 text-[13px] text-muted">Nothing in this box yet.</p>
         {:else}
           <ul class="m-0 list-none p-0 text-[14px]">
-            {#each box.items as i (i.id)}<li class="py-0.5"><a href="/items#item={i.id}">{i.name}</a></li>{/each}
+            {#each box.items as i (i.id)}<li class="py-0.5"><a href="/items/{i.id}">{i.name}</a></li>{/each}
             {#each box.lines as l (l.id)}<li class="py-0.5">{l.name}{l.quantity > 1 ? ` ×${l.quantity}` : ''}</li>{/each}
           </ul>
         {/if}
@@ -129,7 +141,7 @@
       <section aria-label="History">
         <h3 class="m-0 mb-1 text-[13px] font-semibold">History</h3>
         {#each history as e (e.id)}
-          <p class="m-0 py-0.5 text-[13px] text-body">{sentence(e, auth.user?.id)} <span class="text-muted">{ago(e.at)}</span></p>
+          <p class="m-0 py-0.5 text-[13px] text-body">{text(e)} <span class="text-muted">{ago(e.at)}</span></p>
         {:else}
           <p class="m-0 text-[13px] text-muted">No history yet.</p>
         {/each}

@@ -119,6 +119,7 @@
     <div
       data-id={p.id}
       role="treeitem"
+      aria-label={p.name}
       tabindex="-1"
       aria-selected={sel}
       aria-level={r.depth + 1}

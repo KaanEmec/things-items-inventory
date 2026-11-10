@@ -97,11 +97,19 @@
   async function closeBox() {
     const b = packing.box
     try {
+      // A box that was unpacked or is already on its way cannot be closed: stop packing it.
+      const now = b && boxes.find((x) => x.id === b.id)?.box_status
+      if (b && (now === 'unpacked' || now === 'arrived')) {
+        await packing.set(null)
+        showToast(`Box ${b.box_number} is already ${now}. Type another number.`)
+        return
+      }
       await packing.close()
       showToast(`Box ${b?.box_number} packed. Type the next number.`)
       await refresh()
     } catch (e) {
       showToast(explain(e).message, 'error')
+      await packing.load().catch(() => {})
     }
   }
   async function newBox() {
@@ -189,7 +197,7 @@
   {/if}
 
   <div class="flex min-h-0 flex-1 flex-wrap overflow-auto">
-    <section aria-label="Boxes" class="min-w-0 flex-[999_1_480px] border-divider bg-surface-sunken md:border-r" style="background-image: radial-gradient(var(--color-border) 1px, transparent 1px); background-size: 16px 16px">
+    <section aria-label="Boxes" class="min-w-0 flex-[999_1_360px] border-divider bg-surface-sunken md:border-r" style="background-image: radial-gradient(var(--color-border) 1px, transparent 1px); background-size: 16px 16px">
       <div class="p-4 md:p-6">
         {#if error}
           <EmptyState tone="error" compact title="Boxes could not load" message={error} onretry={refresh} />
@@ -218,7 +226,7 @@
       </div>
     </section>
     {#if docked.current}
-      <div class="flex min-w-[260px] flex-[0_1_320px] flex-col">
+      <div class="flex min-w-[260px] flex-[1_1_300px] flex-col">
         <div class="flex h-11 flex-none items-center gap-2 border-b border-divider bg-surface-subtle px-5 text-[13px] font-semibold"><Icon name="printer" size={16} class="text-muted" />Print labels</div>
         <PrintPanel {boxes} {selected} />
       </div>

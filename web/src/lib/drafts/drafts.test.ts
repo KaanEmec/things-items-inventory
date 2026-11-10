@@ -22,7 +22,7 @@ test('isSure needs ready, all sure, no questions', () => {
 })
 test('queueState and answerFields', () => {
   expect(queueState({ ai_state: 'queued' })).toBe('waiting')
-  expect(queueState({ ai_state: null })).toBe('waiting')
+  expect(queueState({ ai_state: null })).toBe('none')
   expect(queueState({ ai_state: 'failed' })).toBe('failed')
   expect(answerFields({ kind: 'choose', field: 'attributes.storage', question: '' }, '128 GB')).toEqual({ attributes: { storage: '128 GB' } })
   expect(answerFields({ kind: 'choose', field: 'model', question: '' }, 'X')).toEqual({ model: 'X' })

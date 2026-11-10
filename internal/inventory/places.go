@@ -339,6 +339,9 @@ func UpdateHome(ctx context.Context, tx *sql.Tx, householdID, homeID string, nam
 				return h, err
 			}
 			if left > 0 {
+				if left == 1 {
+					return h, httpapi.Conflict("1 thing is still in this home. Unpack or move it first.")
+				}
 				return h, httpapi.Conflict(fmt.Sprintf("%d things are still in this home. Unpack or move them first.", left))
 			}
 			a = nullStr(now())

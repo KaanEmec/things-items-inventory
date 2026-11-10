@@ -154,11 +154,13 @@
     else onconfirmed?.(it)
   }
   export async function confirm() {
-    if (!item) return
+    if (!item || busy || !item.draft) return
     busy = true
     try {
       for (const k of Object.keys(edited)) if (values[k] !== ((item[k as 'name'] as string | null) ?? '')) await save({ [k]: values[k] })
       const it = await confirmDraft(id)
+      load(it)
+      showToast(`Confirmed ${it.name}`, 'success')
       onconfirmed?.(it)
     } catch (e) {
       showToast(e instanceof Error ? e.message : 'Could not confirm.', 'error')
@@ -177,7 +179,9 @@
   {:else}
     <div class="flex-1 overflow-y-auto p-4">
       <p class="m-0 mb-3 text-[12px] font-medium text-muted" data-testid="draft-state">{stateText[qstate]}</p>
-      {#if qstate === 'reading' || qstate === 'waiting'}
+      {#if qstate === 'none'}
+        <p class="m-0 mb-3 text-[13px] text-muted">No AI for this draft. Fill in the details by hand.</p>
+      {:else if qstate === 'reading' || qstate === 'waiting'}
         <p class="m-0 mb-3 text-[13px] text-muted">The AI is not done yet. You can fill the fields yourself; it will not overwrite them.</p>
       {/if}
       {#if qstate === 'failed'}
@@ -244,14 +248,16 @@
         </section>
       {/if}
 
-      <div class="mt-4 flex flex-col gap-2">
-        <Field label="Hint for the AI" placeholder="It's the 2021 model" bind:value={hint} />
-        <Button icon="sparkle" disabled={busy} onclick={again}>Ask the AI again</Button>
-        <AiHint role="vision" />
-      </div>
+      {#if qstate !== 'none'}
+        <div class="mt-4 flex flex-col gap-2">
+          <Field label="Hint for the AI" placeholder="It's the 2021 model" bind:value={hint} />
+          <Button icon="sparkle" disabled={busy} onclick={again}>Ask the AI again</Button>
+          <AiHint role="vision" />
+        </div>
+      {/if}
     </div>
     <div class="flex gap-2 border-t border-divider p-3">
-      <Button variant="primary" class="flex-1" disabled={busy} onclick={confirm}>Confirm</Button>
+      <Button variant="primary" class="flex-1" icon={item.draft ? undefined : 'check'} disabled={busy || !item.draft} onclick={confirm}>{item.draft ? 'Confirm' : 'Confirmed'}</Button>
     </div>
   {/if}
 </div>

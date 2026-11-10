@@ -240,6 +240,7 @@
 
   // ---- phone more menu ----
   let moreOpen = $state(false)
+  let homeMenu = $state(false)
   let newHomeOpen = $state(false)
   let newHomeName = $state('New home')
   let copyRooms = $state(true)
@@ -281,7 +282,7 @@
 {#snippet homeSwitcher()}
   <!-- Only when the household has more than one home. -->
   {#if store.homes.length > 1 || (store.homes.length === 1 && canWrite)}
-    <Popover align="right">
+    <Popover align="right" bind:open={homeMenu}>
       {#snippet trigger({ toggle, open })}
         <Button icon="home" onclick={toggle} aria-expanded={open}>{inBoxesView ? 'In boxes' : (store.home?.name ?? 'Home')}<Icon name="chevron-down" size={13} /></Button>
       {/snippet}
@@ -289,19 +290,19 @@
         <button
           type="button"
           class="{menu} md:h-9"
-          onclick={() => ((inBoxesView = false), store.switchHome(h.id), navigate('/places', true))}
+          onclick={() => ((homeMenu = false), (inBoxesView = false), store.switchHome(h.id), navigate('/places', true))}
         >
           <span class="min-w-0 flex-1 truncate">{h.name}</span>{#if h.id === store.homeId && !inBoxesView}<Icon name="check" class="text-accent" />{/if}
         </button>
       {/each}
-      <button type="button" class="{menu} md:h-9" onclick={() => ((inBoxesView = true), navigate('/places', true))}>
+      <button type="button" class="{menu} md:h-9" onclick={() => ((homeMenu = false), (inBoxesView = true), navigate('/places', true))}>
         <Icon name="box" class="text-muted" /><span class="min-w-0 flex-1 truncate">In boxes</span>{#if inBoxesView}<Icon name="check" class="text-accent" />{/if}
       </button>
       {#if canWrite}
-        <button type="button" class="{menu} md:h-9" onclick={() => ((newHomeName = 'New home'), (newHomeOpen = true))}><Icon name="plus" class="text-muted" />New home…</button>
+        <button type="button" class="{menu} md:h-9" onclick={() => ((homeMenu = false), (newHomeName = 'New home'), (newHomeOpen = true))}><Icon name="plus" class="text-muted" />New home…</button>
       {/if}
       {#if can('admin') && !inBoxesView}
-        <button type="button" class="{menu} md:h-9" onclick={archiveHome}><Icon name="archive" class="text-muted" />Archive {store.home?.name ?? 'home'}</button>
+        <button type="button" class="{menu} md:h-9" onclick={() => ((homeMenu = false), archiveHome())}><Icon name="archive" class="text-muted" />Archive {store.home?.name ?? 'home'}</button>
       {/if}
     </Popover>
   {/if}

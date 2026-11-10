@@ -261,10 +261,11 @@ export class CaptureQueue {
     await this.update(e.id, { state: 'uploading', attempts, error: null }, false)
     try {
       await (this.opts.upload ?? uploadEntry)(e)
-      await this.update(e.id, { state: 'uploaded', blob: null, error: null }, false)
+      await this.update(e.id, { state: 'uploaded', error: null }, false)
       await this.store?.delete(e.id)
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Upload failed.'
+      const detail = err instanceof ApiError ? Object.entries(err.fields ?? {}).map(([k, v]) => `${k}: ${v}`).join('; ') : ''
+      const message = detail || (err instanceof Error ? err.message : 'Upload failed.')
       const offline = err instanceof ApiError && err.status === 0 && !this.isOnline()
       if (offline) {
         // No connection: wait for the online event without using up a try.

@@ -105,3 +105,26 @@ describe('waitForJob', () => {
     expect(last.result?.added).toBe(2)
   })
 })
+
+import { formatDay } from '../format'
+import { warrantyLine } from '../inventory/warranty'
+describe('formatDay', () => {
+  it('formats a day the same everywhere and never shifts it', () => {
+    const t = formatDay('2026-06-01')
+    expect(t).toBe(formatDay('2026-06-01T23:59:00Z'))
+    expect(t).toContain('2026')
+    expect(t).toMatch(/\b1\b/)
+    expect(formatDay(null)).toBe('')
+    expect(warrantyLine('2026-06-01', new Date('2026-01-01'))?.text).toContain(t)
+  })
+})
+
+describe('reactivity of added rows', () => {
+  it('a row added by addTyped becomes created in the sheet rows', async () => {
+    const { s } = make()
+    s.addTyped('Sony headphones')
+    await s.flushAll()
+    expect(s.named[0].created).toBe(true)
+    expect(s.added).toBe(1) // the derived count only follows changes made through the state proxy
+  })
+})

@@ -192,7 +192,7 @@
           {/if}
         </li>
       {:else}
-        <li class="px-4 py-6 text-[14px] text-muted">Type a name below and press Add. The AI tidies each line.</li>
+        <li class="px-4 py-6 text-[14px] text-muted">Type a name below and press Add.{ai.status('text') === 'working' ? ' The AI tidies each line.' : ''}</li>
       {/each}
     </ul>
   {:else if error}

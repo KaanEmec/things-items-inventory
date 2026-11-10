@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from 'svelte'
   import { auth } from '../auth.svelte'
   import Icon from '../Icon.svelte'
   import PlaceDialog from '../inventory/PlaceDialog.svelte'
@@ -25,7 +26,8 @@
     if (!packing.loaded) packing.load().catch(() => {})
   })
   $effect(() => {
-    if (packing.box) session.setPlace(boxPlace(packing.box))
+    const b = packing.box
+    if (b) untrack(() => session.setPlace(boxPlace(b)))
   })
 
   let picker: Picker
@@ -180,6 +182,7 @@
         <span class="block text-[12px] font-normal text-muted">
           {#if !queue.online && queue.pending}Offline. They upload when you are back online.
           {:else if queue.pending}Keep the app open to finish uploading
+          {:else if queue.failed}Some photos did not upload. Open this to retry them.
           {:else}Everything is uploaded{/if}
         </span>
       </span>

@@ -4,6 +4,7 @@
   import Avatar from '../ui/Avatar.svelte'
   import CategoryTile from '../ui/CategoryTile.svelte'
   import StatusPill, { statusMeta } from '../ui/StatusPill.svelte'
+  import { photoUrl } from './photos'
   import type { Item } from './types'
 
   interface Props {
@@ -24,6 +25,8 @@
 
   const sub = $derived([item.brand, item.model].filter(Boolean).join(' '))
   const status = $derived(statusMeta(item.status))
+  const main = $derived(item.photos?.find((p) => p.role === 'item') ?? null)
+  let broken = $state<string | null>(null)
 </script>
 
 <!-- Fixed height (56 px, 64 px on phone) so the list can window. The wide layout shows the place as its own
@@ -54,8 +57,12 @@
     }}
     class="flex h-full min-w-0 flex-1 items-center gap-3"
   >
-    <span class="@[520px]:hidden"><CategoryTile category={item.category} size={42} /></span>
-    <span class="hidden @[520px]:inline-flex"><CategoryTile category={item.category} size={32} /></span>
+    {#if main && broken !== main.sha256}
+      <img src={photoUrl(main.sha256)} alt="" loading="lazy" onerror={() => (broken = main.sha256)} class="size-[42px] flex-none rounded-[9px] object-cover @[520px]:size-8" />
+    {:else}
+      <span class="@[520px]:hidden"><CategoryTile category={item.category} size={42} /></span>
+      <span class="hidden @[520px]:inline-flex"><CategoryTile category={item.category} size={32} /></span>
+    {/if}
     <span class="min-w-0 flex-[1_1_0] @[520px]:flex-[1.1_1_0]">
       <span class="flex items-center gap-1.5">
         <b class="truncate text-[15px] font-semibold @[520px]:text-[14px]">{item.name}</b>

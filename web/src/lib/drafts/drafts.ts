@@ -39,7 +39,7 @@ export function isSure(item: Item): boolean {
   return item.ai_state === 'ready' && d.needs.length === 0 && item.ai_fields.every((f) => d.confidence[f] === 'sure')
 }
 
-export type QueueState = 'waiting' | 'reading' | 'ready' | 'failed'
+export type QueueState = 'none' | 'waiting' | 'reading' | 'ready' | 'failed'
 export function queueState(item: Pick<Item, 'ai_state'>): QueueState {
   switch (item.ai_state) {
     case 'reading':
@@ -48,11 +48,14 @@ export function queueState(item: Pick<Item, 'ai_state'>): QueueState {
       return 'failed'
     case 'ready':
       return 'ready'
+    case 'queued':
+      return 'waiting'
     default:
-      return 'waiting' // queued, or no AI yet
+      return 'none' // null: no AI for this draft
   }
 }
 export const stateText: Record<QueueState, string> = {
+  none: 'No AI',
   waiting: 'Waiting',
   reading: 'AI reading',
   ready: 'Ready to review',
