@@ -43,6 +43,7 @@
   const hint: Record<string, string> = { item: 'The thing itself', label: 'Optional · model or serial label', receipt: 'Optional · proof of purchase' }
   const role = $derived<Role>(session.mode === 'contents' ? 'contents' : active)
   const shots = $derived(session.shots)
+  const needPlace = $derived(session.mode === 'contents' && !session.place)
   const contentsReady = $derived(session.mode === 'contents' && !!session.place && shots.some((e) => e.role === 'contents' && e.state === 'uploaded'))
   const reviewable = $derived(session.mode === 'item' && shots.some((e) => e.role === 'item' && e.state === 'uploaded'))
 
@@ -134,7 +135,8 @@
     {/if}
 
     <div class="px-4 pt-3">
-      <Button class="w-full" icon="image" onclick={() => shoot('library')}>Choose from library</Button>
+      {#if needPlace}<p class="m-0 mb-2 text-[13px] font-semibold text-danger" role="status">Choose the box or place first</p>{/if}
+      <Button class="w-full" icon="image" disabled={needPlace} onclick={() => shoot('library')}>Choose from library</Button>
     </div>
 
     <!-- What was just taken. -->
@@ -191,7 +193,7 @@
   </div>
 
   {#snippet bar()}
-    <Button class="flex-1" icon="camera" onclick={() => shoot('camera')}>
+    <Button class="flex-1" icon="camera" disabled={needPlace} onclick={() => shoot('camera')}>
       {session.mode === 'contents' ? 'Take photo' : `${roleLabel[active]} photo`}
     </Button>
     <Button variant="primary" class="flex-1" icon="check" disabled={!shots.length} onclick={next}>
