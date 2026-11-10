@@ -3,6 +3,8 @@ package config
 
 import (
 	"log/slog"
+	"net"
+	"net/netip"
 	"os"
 	"strings"
 )
@@ -21,6 +23,11 @@ type Config struct {
 	// only behind a reverse proxy that sets the header; otherwise anyone
 	// could forge it.
 	TrustProxy bool
+	// TrustedProxies lists the proxy addresses (IPs or CIDRs) whose
+	// X-Forwarded-For and X-Forwarded-Proto headers are believed
+	// (INVENTORY_TRUSTED_PROXIES, comma separated). When set, headers from
+	// any other peer are ignored; it makes TrustProxy unnecessary.
+	TrustedProxies []netip.Prefix
 	// SecretKey is the base64 instance key for encrypting stored API tokens
 	// (INVENTORY_SECRET_KEY). Empty means <data>/secret.key is used.
 	SecretKey Secret
@@ -61,6 +68,7 @@ func Load() Config {
 		DataDir:        env("INVENTORY_DATA", "./data"),
 		PublicURL:      strings.TrimRight(os.Getenv("INVENTORY_PUBLIC_URL"), "/"),
 		TrustProxy:     os.Getenv("INVENTORY_TRUST_PROXY") == "1",
+		TrustedProxies: parseProxies(os.Getenv("INVENTORY_TRUSTED_PROXIES")),
 		SecretKey:      Secret(os.Getenv("INVENTORY_SECRET_KEY")),
 		AIBlockPrivate: boolEnv("INVENTORY_AI_BLOCK_PRIVATE"),
 		AI: AIDefaults{
@@ -92,4 +100,66 @@ func boolEnv(key string) bool {
 		return true
 	}
 	return false
+}
+
+func parseProxies(v string) []netip.Prefix {
+	var out []netip.Prefix
+	for _, f := range strings.Split(v, ",") {
+		f = strings.TrimSpace(f)
+		if f == "" {
+			continue
+		}
+		if p, err := netip.ParsePrefix(f); err == nil {
+			out = append(out, p.Masked())
+		} else if a, err := netip.ParseAddr(f); err == nil {
+			out = append(out, netip.PrefixFrom(a.Unmap(), a.Unmap().BitLen()))
+		} else {
+			slog.Warn("ignoring invalid INVENTORY_TRUSTED_PROXIES entry", "entry", f)
+		}
+	}
+	return out
+}
+
+// IsTrustedProxy reports whether ip may set forwarding headers. With a
+// TrustedProxies list only those addresses qualify; otherwise TrustProxy
+// (INVENTORY_TRUST_PROXY=1) trusts every peer.
+func (c Config) IsTrustedProxy(ip string) bool {
+	if len(c.TrustedProxies) == 0 {
+		return c.TrustProxy
+	}
+	a, err := netip.ParseAddr(ip)
+	if err != nil {
+		return false
+	}
+	a = a.Unmap()
+	for _, p := range c.TrustedProxies {
+		if p.Contains(a) {
+			return true
+		}
+	}
+	return false
+}
+
+// ClientIP returns the caller's address: the TCP peer, or, when that peer is
+// a trusted proxy, the first X-Forwarded-For entry (from the right) that is
+// not itself a trusted proxy.
+func (c Config) ClientIP(remoteAddr, xff string) string {
+	host, _, err := net.SplitHostPort(remoteAddr)
+	if err != nil {
+		host = remoteAddr
+	}
+	if !c.IsTrustedProxy(host) || xff == "" {
+		return host
+	}
+	parts := strings.Split(xff, ",")
+	for i := len(parts) - 1; i >= 0; i-- {
+		ip := strings.TrimSpace(parts[i])
+		if net.ParseIP(ip) == nil {
+			return host
+		}
+		if len(c.TrustedProxies) == 0 || !c.IsTrustedProxy(ip) {
+			return ip
+		}
+	}
+	return host
 }

@@ -5,6 +5,7 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"net/netip"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -273,6 +274,39 @@ func TestSecureCookie(t *testing.T) {
 		if secure != tc.want {
 			t.Errorf("public URL %q: Secure=%v", tc.publicURL, secure)
 		}
+	}
+}
+
+func TestForwardedProtoOnlyFromTrustedProxy(t *testing.T) {
+	loop := netip.MustParsePrefix("127.0.0.0/8") // the test server's peer
+	other := netip.MustParsePrefix("192.0.2.0/24")
+	for _, tc := range []struct {
+		proxies []netip.Prefix
+		want    bool
+	}{{nil, false}, {[]netip.Prefix{other}, false}, {[]netip.Prefix{loop}, true}} {
+		e := newEnv(t, config.Config{TrustedProxies: tc.proxies})
+		_, _, res := e.client().do("POST", "/api/v1/setup", setupBody, "X-Forwarded-Proto", "https")
+		var secure bool
+		for _, c := range res.Cookies() {
+			if c.Name == "session" {
+				secure = c.Secure
+			}
+		}
+		if secure != tc.want {
+			t.Errorf("proxies %v: Secure=%v, want %v", tc.proxies, secure, tc.want)
+		}
+	}
+}
+
+func TestForwardedForIgnoredFromUntrustedPeer(t *testing.T) {
+	e := newEnv(t, config.Config{TrustedProxies: []netip.Prefix{netip.MustParsePrefix("192.0.2.0/24")}})
+	hid := seedHousehold(t, e.d, "H")
+	seedUser(t, e.d, "Bob", "bob@example.com", hid, "member")
+	for i := range 12 { // each guess forges a new address; the limiter must still see one peer
+		e.client().do("POST", "/api/v1/auth/login", `{"email":"bob@example.com","password":"wrong wrong wrong"}`, "X-Forwarded-For", "203.0.113."+string(rune('1'+i%9)))
+	}
+	if s, _, _ := e.client().do("POST", "/api/v1/auth/login", `{"email":"bob@example.com","password":"`+pw+`"}`, "X-Forwarded-For", "198.51.100.77"); s != 429 {
+		t.Fatalf("forged X-Forwarded-For dodged the limiter: %d", s)
 	}
 }
 

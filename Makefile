@@ -4,7 +4,7 @@ LDFLAGS := -X main.version=$(VERSION) -X main.buildTime=$(BUILD_TIME)
 
 STATICCHECK := honnef.co/go/tools/cmd/staticcheck@v0.8.2
 
-.PHONY: dev build test lint generate generate-check ci smoke
+.PHONY: dev build test lint generate generate-check ci smoke docker-smoke docker-multiarch
 
 dev:
 	npm --prefix web run dev & go run ./cmd/inventory; kill %1
@@ -31,6 +31,12 @@ generate-check: generate
 
 smoke:
 	sh scripts/smoke.sh
+
+docker-smoke:
+	sh scripts/docker-smoke.sh
+
+docker-multiarch:
+	docker buildx build --platform linux/amd64,linux/arm64 -t inventory:multiarch .
 
 ci: lint test build
 

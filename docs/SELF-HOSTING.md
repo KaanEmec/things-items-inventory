@@ -24,7 +24,7 @@ Everything lives in `/data`, the only writable path: the SQLite database (with i
 The camera and "install app" on a phone only work on HTTPS. Put a reverse proxy (Caddy, Traefik, nginx) in front of port 8080, serve it on your domain, and set:
 
 - `INVENTORY_PUBLIC_URL=https://your.domain` (cookies become Secure, links are complete)
-- `INVENTORY_TRUST_PROXY=1`, only if the proxy sets `X-Forwarded-For` and nothing else can reach port 8080.
+- `INVENTORY_TRUSTED_PROXIES=172.18.0.0/16,10.0.0.1` (comma-separated IPs or CIDRs of your proxy): `X-Forwarded-For` and `X-Forwarded-Proto` are believed only from these peers. `INVENTORY_TRUST_PROXY=1` trusts every peer; use it only if nothing but the proxy can reach port 8080.
 
 ## Upgrades
 

@@ -126,7 +126,11 @@ func hashToken(token string) string {
 }
 
 func (s *Service) secureCookie(r *http.Request) bool {
-	return r.TLS != nil || strings.HasPrefix(s.cfg.PublicURL, "https://")
+	if r.TLS != nil || strings.HasPrefix(s.cfg.PublicURL, "https://") {
+		return true
+	}
+	host, _, _ := net.SplitHostPort(r.RemoteAddr)
+	return s.cfg.IsTrustedProxy(host) && strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https")
 }
 
 func (s *Service) setCookie(w http.ResponseWriter, r *http.Request, token string, expires time.Time) {
@@ -145,19 +149,7 @@ func (s *Service) clearCookie(w http.ResponseWriter, r *http.Request) {
 
 // clientAddr is the address used for rate limiting and recorded on sessions.
 func (s *Service) clientAddr(r *http.Request) string {
-	if s.cfg.TrustProxy {
-		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-			parts := strings.Split(xff, ",")
-			if ip := strings.TrimSpace(parts[len(parts)-1]); net.ParseIP(ip) != nil {
-				return ip
-			}
-		}
-	}
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		return r.RemoteAddr
-	}
-	return host
+	return s.cfg.ClientIP(r.RemoteAddr, r.Header.Get("X-Forwarded-For"))
 }
 
 // unsafeCrossSite reports a data-changing request that came from another
