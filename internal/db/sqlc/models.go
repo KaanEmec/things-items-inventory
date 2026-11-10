@@ -23,6 +23,24 @@ type AccessToken struct {
 	RevokedAt   sql.NullString
 }
 
+type AiActivity struct {
+	ID          string
+	HouseholdID string
+	At          string
+	Feature     string
+	Role        string
+	Model       string
+	TokensIn    sql.NullInt64
+	TokensOut   sql.NullInt64
+	Cost        sql.NullFloat64
+	DurationMs  int64
+	Ok          int64
+	ErrorCode   sql.NullString
+	Error       sql.NullString
+	JobID       sql.NullString
+	ItemID      sql.NullString
+}
+
 type AiProfile struct {
 	HouseholdID  string
 	Role         string
@@ -55,6 +73,20 @@ type ContentsLine struct {
 	Ai          int64
 	ItemID      sql.NullString
 	CreatedBy   sql.NullString
+}
+
+type Event struct {
+	ID          string
+	HouseholdID string
+	At          string
+	ActorKind   string
+	UserID      sql.NullString
+	TokenID     sql.NullString
+	TokenName   sql.NullString
+	Kind        string
+	ItemID      sql.NullString
+	PlaceID     sql.NullString
+	Data        string
 }
 
 type Home struct {
@@ -139,6 +171,7 @@ type Job struct {
 	Payload     string
 	State       string
 	Attempts    int64
+	Deferrals   int64
 	RunAfter    string
 	LastError   sql.NullString
 	Result      sql.NullString
@@ -208,6 +241,29 @@ type Place struct {
 	PackedAt       sql.NullString
 	PackedBy       sql.NullString
 	LabelPrintedAt sql.NullString
+}
+
+type SearchDoc struct {
+	ID          int64
+	HouseholdID string
+	Kind        string
+	RefID       string
+	Touched     string
+	Display     string
+	Detail      string
+	Path        string
+	NameFold    string
+	KeyFold     string
+	BrandFold   string
+	BoxNumber   sql.NullInt64
+}
+
+type SearchFt struct {
+	HouseholdID string
+	Kind        string
+	RefID       string
+	Title       string
+	Body        string
 }
 
 type Session struct {

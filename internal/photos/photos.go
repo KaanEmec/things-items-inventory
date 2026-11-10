@@ -538,3 +538,32 @@ func nullStrs(ids []string) []sql.NullString {
 	}
 	return out
 }
+
+// ItemLinks is LinksOf for items on any connection or transaction q. With
+// mainOnly it keeps only each item's main photo (its first link when that is
+// an `item` link), for lists.
+func ItemLinks(ctx context.Context, q sqlc.DBTX, householdID string, ids []string, mainOnly bool) (map[string][]LinkInfo, error) {
+	out := map[string][]LinkInfo{}
+	if len(ids) == 0 {
+		return out, nil
+	}
+	rows, err := sqlc.New(q).ListLinksForItems(ctx, sqlc.ListLinksForItemsParams{HouseholdID: householdID, ItemIds: nullStrs(ids)})
+	if err != nil {
+		return nil, err
+	}
+	for _, r := range rows {
+		if mainOnly && (len(out[r.ItemID.String]) > 0 || r.Role != RoleItem) {
+			continue
+		}
+		out[r.ItemID.String] = append(out[r.ItemID.String], LinkInfo{r.LinkID, r.PhotoID, r.Sha256, r.Role, r.Sort})
+	}
+	return out, nil
+}
+
+// LinkItemPhoto links an existing photo to an item with the `item` role inside
+// tx. An item with no photos gets it as its first (main) one. Linking twice
+// is a no-op.
+func (s *Service) LinkItemPhoto(ctx context.Context, tx *sql.Tx, householdID, photoID, itemID string) error {
+	_, _, err := s.linkIn(ctx, sqlc.New(tx), householdID, photoID, "", RoleItem, nullStr(itemID), sql.NullString{})
+	return err
+}

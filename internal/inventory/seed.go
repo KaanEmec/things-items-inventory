@@ -8,7 +8,8 @@ import (
 	"github.com/kaanemec/things-items-inventory/internal/id"
 )
 
-// SeedTestData creates a home, two places, an item and a contents line in the
+// SeedTestData creates a home, two places, an item (moved once, so there is
+// history) and a contents line in the
 // household, for the cross-household test. It returns the IDs to try in
 // every {param} and marker strings that must never leak.
 func SeedTestData(ctx context.Context, d *db.DB, householdID string) (pathValues, markers []string, err error) {
@@ -32,6 +33,10 @@ func SeedTestData(ctx context.Context, d *db.DB, householdID string) (pathValues
 		}
 		lines, err := CreateLines(ctx, tx, householdID, "", drawer.ID, []LineInput{{Name: "Secret-Line-7Q"}})
 		if err != nil {
+			return err
+		}
+		// History rows carrying the markers (paths of both places in a move).
+		if _, err := MoveItem(ctx, tx, householdID, "", item.ID, &room.ID); err != nil {
 			return err
 		}
 		pathValues = []string{h.ID, room.ID, drawer.ID, item.ID, lines[0].ID, id.New()}

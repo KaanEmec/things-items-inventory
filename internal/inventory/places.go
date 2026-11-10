@@ -311,6 +311,7 @@ func UpdateHome(ctx context.Context, tx *sql.Tx, householdID, homeID string, nam
 // SeedStarter creates the first-run home with a few common rooms. Call it in
 // the transaction that creates the household.
 func SeedStarter(ctx context.Context, tx *sql.Tx, householdID string) error {
+	ctx = quiet(ctx) // first-run rooms are not history
 	h, err := CreateHome(ctx, tx, householdID, "Home", "")
 	if err != nil {
 		return err
@@ -439,6 +440,10 @@ func CreatePlace(ctx context.Context, tx *sql.Tx, householdID string, in PlaceIn
 	if err != nil {
 		return p, fmt.Errorf("create place: %w", err)
 	}
+	after := map[string]any{"name": p.Name, "kind": p.Kind, "path": p.Path, "parent_id": ns(p.ParentID)}
+	if err := RecordEvent(ctx, tx, EventInput{HouseholdID: householdID, Kind: "created", PlaceID: p.ID, PlaceKind: p.Kind, After: after}); err != nil {
+		return p, err
+	}
 	return p, nil
 }
 
@@ -562,7 +567,45 @@ func UpdatePlace(ctx context.Context, tx *sql.Tx, householdID, placeID string, c
 		}
 		u.Parent = &parent
 	}
-	return writePlace(ctx, q, householdID, row, u)
+	saved, err := writePlace(ctx, q, householdID, row, u)
+	if err != nil {
+		return saved, err
+	}
+	return saved, recordPlaceDiff(ctx, tx, householdID, row, saved)
+}
+
+// recordPlaceDiff records a moved place as one "moved" event (its subtree
+// follows without events of its own) and the other changed fields as "edited".
+func recordPlaceDiff(ctx context.Context, tx *sql.Tx, hid string, a, b sqlc.Place) error {
+	in := EventInput{HouseholdID: hid, PlaceID: b.ID, PlaceKind: b.Kind}
+	moved := a.ParentID != b.ParentID || a.HomeID != b.HomeID
+	if moved {
+		in.Kind = "moved"
+		in.Before = map[string]any{"parent_id": ns(a.ParentID), "home_id": ns(a.HomeID), "path": a.Path}
+		in.After = map[string]any{"parent_id": ns(b.ParentID), "home_id": ns(b.HomeID), "path": b.Path}
+		if err := RecordEvent(ctx, tx, in); err != nil {
+			return err
+		}
+	}
+	before, after := map[string]any{}, map[string]any{}
+	diff := func(k string, x, y any) {
+		if x != y {
+			before[k], after[k] = x, y
+		}
+	}
+	diff("name", a.Name, b.Name)
+	diff("goes_to_id", ns(a.GoesToID), ns(b.GoesToID))
+	diff("color", ns(a.Color), ns(b.Color))
+	diff("daily_use", a.DailyUse != 0, b.DailyUse != 0)
+	diff("note", ns(a.Note), ns(b.Note))
+	if !moved {
+		diff("sort", a.Sort, b.Sort)
+	}
+	if len(after) == 0 {
+		return nil
+	}
+	in.Kind, in.Before, in.After = "edited", before, after
+	return RecordEvent(ctx, tx, in)
 }
 
 // placeUpdate is a place's resolved new state.
@@ -700,6 +743,14 @@ func DeletePlace(ctx context.Context, tx *sql.Tx, householdID, userID, placeID, 
 			return row, err
 		}
 	}
+	after := map[string]any{}
+	if moveTo != "" {
+		after["moved_contents_to"] = moveTo
+	}
+	if err := RecordEvent(ctx, tx, EventInput{HouseholdID: householdID, Kind: "deleted", PlaceID: row.ID, PlaceKind: row.Kind,
+		UserID: userID, Before: map[string]any{"name": row.Name, "path": row.Path}, After: after}); err != nil {
+		return row, err
+	}
 	return q.GetPlace(ctx, sqlc.GetPlaceParams{HouseholdID: householdID, ID: row.ID})
 }
 
@@ -723,6 +774,10 @@ func RestorePlace(ctx context.Context, tx *sql.Tx, householdID, placeID string) 
 		}
 	}
 	if err := q.RestorePlace(ctx, sqlc.RestorePlaceParams{UpdatedAt: now(), HouseholdID: householdID, ID: row.ID}); err != nil {
+		return row, err
+	}
+	if err := RecordEvent(ctx, tx, EventInput{HouseholdID: householdID, Kind: "restored", PlaceID: row.ID, PlaceKind: row.Kind,
+		After: map[string]any{"name": row.Name, "path": row.Path}}); err != nil {
 		return row, err
 	}
 	return q.GetPlace(ctx, sqlc.GetPlaceParams{HouseholdID: householdID, ID: row.ID})

@@ -34,6 +34,7 @@ ENV INVENTORY_DATA=/data INVENTORY_ADDR=:8080
 VOLUME /data
 EXPOSE 8080
 USER nonroot:nonroot
-# No HEALTHCHECK: the image has no shell or curl and the binary has no probe
-# subcommand yet. See the healthcheck in docker-compose.yml.
+# The image has no shell or curl, so the binary probes its own /api/health.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD ["/inventory", "healthcheck"]
 ENTRYPOINT ["/inventory"]

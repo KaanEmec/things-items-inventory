@@ -464,6 +464,8 @@ type NewItem struct {
 	ImportID string
 	AIState  string // "queued" for a capture draft
 	Fields   Fields
+
+	fromLine string // set by PromoteLine: the contents line this item came from
 }
 
 // CreateItem adds an item. When n.ID already exists in the household the
@@ -527,6 +529,15 @@ func CreateItem(ctx context.Context, tx *sql.Tx, householdID, userID string, n N
 		}
 		row.AiState = nullStr(n.AIState)
 	}
+	after := map[string]any{"name": row.Name, "category": row.Category, "status": row.Status, "source": row.Source,
+		"draft": row.Draft != 0, "place_id": ns(row.PlaceID), "place_path": placePathOf(ctx, q, householdID, row.PlaceID)}
+	if n.fromLine != "" {
+		after["from_line_id"] = n.fromLine
+	}
+	if err := RecordEvent(ctx, tx, EventInput{HouseholdID: householdID, Kind: "created", ItemID: row.ID,
+		PlaceID: row.PlaceID.String, UserID: userID, After: after}); err != nil {
+		return row, false, err
+	}
 	return row, true, nil
 }
 
@@ -542,7 +553,11 @@ func UpdateItem(ctx context.Context, tx *sql.Tx, householdID, userID, itemID str
 	if err := e.applyFields(ctx, q, householdID, f, patchFields); err != nil {
 		return row, err
 	}
-	return e.save(ctx, q, householdID, userID, e.row.PlaceID != row.PlaceID, true)
+	saved, err := e.save(ctx, q, householdID, userID, e.row.PlaceID != row.PlaceID, true)
+	if err != nil {
+		return saved, err
+	}
+	return saved, recordItemDiff(ctx, tx, householdID, userID, row, saved, false)
 }
 
 // MoveItem puts an item in a place (nil = not found / not placed) and sets
@@ -561,7 +576,11 @@ func MoveItem(ctx context.Context, tx *sql.Tx, householdID, userID, itemID strin
 	if err := e.setPlace(ctx, q, householdID, v); err != nil {
 		return row, err
 	}
-	return e.save(ctx, q, householdID, userID, true, true)
+	saved, err := e.save(ctx, q, householdID, userID, true, true)
+	if err != nil {
+		return saved, err
+	}
+	return saved, recordItemDiff(ctx, tx, householdID, userID, row, saved, true)
 }
 
 // MarkSeen is "I saw it here": it sets last_seen_at.
@@ -572,7 +591,11 @@ func MarkSeen(ctx context.Context, tx *sql.Tx, householdID, userID, itemID strin
 		return row, err
 	}
 	e, _ := newEdit(row)
-	return e.save(ctx, q, householdID, userID, true, true)
+	saved, err := e.save(ctx, q, householdID, userID, true, true)
+	if err != nil {
+		return saved, err
+	}
+	return saved, recordItemDiff(ctx, tx, householdID, userID, row, saved, true)
 }
 
 // ConfirmItem accepts all remaining AI fields and clears draft.
@@ -584,7 +607,13 @@ func ConfirmItem(ctx context.Context, tx *sql.Tx, householdID, userID, itemID st
 	}
 	e, _ := newEdit(row)
 	e.ai, e.row.Draft = nil, 0
-	return e.save(ctx, q, householdID, userID, false, true)
+	saved, err := e.save(ctx, q, householdID, userID, false, true)
+	if err != nil {
+		return saved, err
+	}
+	return saved, RecordEvent(ctx, tx, EventInput{HouseholdID: householdID, Kind: "confirmed", ItemID: row.ID,
+		PlaceID: row.PlaceID.String, UserID: userID,
+		Before: map[string]any{"draft": row.Draft != 0}, After: map[string]any{"draft": false}})
 }
 
 // DeleteItem soft-deletes an item.
@@ -599,6 +628,10 @@ func DeleteItem(ctx context.Context, tx *sql.Tx, householdID, userID, itemID str
 		HouseholdID: householdID, ID: itemID}); err != nil {
 		return row, err
 	}
+	if err := RecordEvent(ctx, tx, EventInput{HouseholdID: householdID, Kind: "deleted", ItemID: itemID,
+		PlaceID: row.PlaceID.String, UserID: userID}); err != nil {
+		return row, err
+	}
 	return getItemRow(ctx, q, householdID, itemID)
 }
 
@@ -610,6 +643,7 @@ func RestoreItem(ctx context.Context, tx *sql.Tx, householdID, userID, itemID st
 	if err != nil || !row.DeletedAt.Valid {
 		return row, err
 	}
+	placeID := row.PlaceID
 	if row.PlaceID.Valid {
 		if p, err := q.GetPlace(ctx, sqlc.GetPlaceParams{HouseholdID: householdID, ID: row.PlaceID.String}); err != nil || p.DeletedAt.Valid {
 			if err != nil && !isNoRows(err) {
@@ -618,10 +652,15 @@ func RestoreItem(ctx context.Context, tx *sql.Tx, householdID, userID, itemID st
 			if _, err := q.UpdateItemRow(ctx, itemRowParams(row, sql.NullString{}, userID)); err != nil {
 				return row, err
 			}
+			placeID = sql.NullString{}
 		}
 	}
 	if err := q.SetItemDeleted(ctx, sqlc.SetItemDeletedParams{DeletedAt: sql.NullString{}, UpdatedBy: nullStr(userID), UpdatedAt: now(),
 		HouseholdID: householdID, ID: itemID}); err != nil {
+		return row, err
+	}
+	if err := RecordEvent(ctx, tx, EventInput{HouseholdID: householdID, Kind: "restored", ItemID: itemID,
+		PlaceID: placeID.String, UserID: userID}); err != nil {
 		return row, err
 	}
 	return getItemRow(ctx, q, householdID, itemID)
@@ -686,6 +725,9 @@ func BulkUpdate(ctx context.Context, tx *sql.Tx, householdID, userID string, ids
 		if err != nil {
 			return nil, err
 		}
+		if err := recordItemDiff(ctx, tx, householdID, userID, row, saved, false); err != nil {
+			return nil, err
+		}
 		out = append(out, saved)
 	}
 	return out, nil
@@ -736,8 +778,14 @@ func ApplyAI(ctx context.Context, tx *sql.Tx, householdID, itemID string, fields
 	if len(applied) == 0 {
 		return nil, nil
 	}
-	_, err = e.save(ctx, q, householdID, "", false, false)
-	return applied, err
+	saved, err := e.save(ctx, q, householdID, "", false, false)
+	if err != nil {
+		return applied, err
+	}
+	if _, ok := ctx.Value(aiKey).(string); !ok {
+		ctx = WithAI(ctx, "")
+	}
+	return applied, recordItemDiff(ctx, tx, householdID, "", row, saved, false)
 }
 
 // normalizeJSON turns Go values an AI job may hand over (ints, []string)
@@ -772,6 +820,12 @@ func SetAIMeta(ctx context.Context, tx *sql.Tx, householdID, itemID, state strin
 	if draftJSON != nil {
 		draft = nullStr(string(draftJSON))
 	}
-	return q.SetItemAIMeta(ctx, sqlc.SetItemAIMetaParams{AiState: nullStr(state), AiDraft: draft, UpdatedAt: now(),
-		HouseholdID: householdID, ID: itemID})
+	if err := q.SetItemAIMeta(ctx, sqlc.SetItemAIMetaParams{AiState: nullStr(state), AiDraft: draft, UpdatedAt: now(),
+		HouseholdID: householdID, ID: itemID}); err != nil {
+		return err
+	}
+	// Not a history event (it is the machine's bookkeeping), but the open
+	// screens want to know.
+	notify(tx, Notice{householdID, "item", itemID, "ai_state"})
+	return nil
 }

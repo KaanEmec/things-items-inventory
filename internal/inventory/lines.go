@@ -71,6 +71,7 @@ func CreateLines(ctx context.Context, tx *sql.Tx, householdID, userID, placeID s
 		return nil, invalid("lines", "Give 1 to 200 lines.")
 	}
 	out := make([]sqlc.ContentsLine, 0, len(in))
+	var added []map[string]any
 	t := now()
 	for _, l := range in {
 		if l.ID != "" {
@@ -101,8 +102,29 @@ func CreateLines(ctx context.Context, tx *sql.Tx, householdID, userID, placeID s
 			return nil, err
 		}
 		out = append(out, row)
+		added = append(added, map[string]any{"id": row.ID, "name": row.Name, "quantity": row.Quantity})
+	}
+	if len(added) > 0 {
+		if err := recordLines(ctx, tx, householdID, userID, placeID, "created", nil, map[string]any{"count": len(added), "lines": added}); err != nil {
+			return nil, err
+		}
 	}
 	return out, nil
+}
+
+// recordLines records a change to the contents lines of a container; the
+// event belongs to the container.
+func recordLines(ctx context.Context, tx *sql.Tx, hid, userID, placeID, kind string, before, after map[string]any) error {
+	p, err := sqlc.New(tx).GetPlace(ctx, sqlc.GetPlaceParams{HouseholdID: hid, ID: placeID})
+	if err != nil {
+		return err
+	}
+	return RecordEvent(ctx, tx, EventInput{HouseholdID: hid, Kind: kind, PlaceID: placeID, PlaceKind: p.Kind,
+		Subject: "lines", UserID: userID, Before: before, After: after})
+}
+
+func lineMap(l sqlc.ContentsLine) map[string]any {
+	return map[string]any{"id": l.ID, "name": l.Name, "quantity": l.Quantity, "category": ns(l.Category)}
 }
 
 func getLine(ctx context.Context, q *sqlc.Queries, householdID, lineID string) (sqlc.ContentsLine, error) {
@@ -143,7 +165,25 @@ func UpdateLine(ctx context.Context, tx *sql.Tx, householdID, lineID string, ch 
 	if name, err = checkLine(name, qty, cat.String); err != nil {
 		return l, err
 	}
-	return q.UpdateLine(ctx, sqlc.UpdateLineParams{Name: name, Quantity: qty, Category: cat, UpdatedAt: now(), HouseholdID: householdID, ID: lineID})
+	saved, err := q.UpdateLine(ctx, sqlc.UpdateLineParams{Name: name, Quantity: qty, Category: cat, UpdatedAt: now(), HouseholdID: householdID, ID: lineID})
+	if err != nil {
+		return saved, err
+	}
+	before, after := map[string]any{"line_id": l.ID}, map[string]any{"line_id": l.ID}
+	changed := false
+	if l.Name != saved.Name {
+		before["name"], after["name"], changed = l.Name, saved.Name, true
+	}
+	if l.Quantity != saved.Quantity {
+		before["quantity"], after["quantity"], changed = l.Quantity, saved.Quantity, true
+	}
+	if l.Category != saved.Category {
+		before["category"], after["category"], changed = ns(l.Category), ns(saved.Category), true
+	}
+	if changed {
+		err = recordLines(ctx, tx, householdID, "", l.PlaceID, "edited", before, after)
+	}
+	return saved, err
 }
 
 // DeleteLine soft-deletes a line.
@@ -155,6 +195,9 @@ func DeleteLine(ctx context.Context, tx *sql.Tx, householdID, lineID string) (sq
 	}
 	t := now()
 	if err := q.SetLineDeleted(ctx, sqlc.SetLineDeletedParams{DeletedAt: nullStr(t), UpdatedAt: t, HouseholdID: householdID, ID: lineID}); err != nil {
+		return l, err
+	}
+	if err := recordLines(ctx, tx, householdID, "", l.PlaceID, "deleted", lineMap(l), nil); err != nil {
 		return l, err
 	}
 	return getLine(ctx, q, householdID, lineID)
@@ -173,6 +216,9 @@ func RestoreLine(ctx context.Context, tx *sql.Tx, householdID, lineID string) (s
 	if err := q.SetLineDeleted(ctx, sqlc.SetLineDeletedParams{DeletedAt: sql.NullString{}, UpdatedAt: now(), HouseholdID: householdID, ID: lineID}); err != nil {
 		return l, err
 	}
+	if err := recordLines(ctx, tx, householdID, "", l.PlaceID, "restored", nil, lineMap(l)); err != nil {
+		return l, err
+	}
 	return getLine(ctx, q, householdID, lineID)
 }
 
@@ -182,8 +228,14 @@ func ConfirmLines(ctx context.Context, tx *sql.Tx, householdID, placeID string) 
 	if _, err := GetPlace(ctx, tx, householdID, placeID); err != nil {
 		return nil, err
 	}
-	if _, err := q.ConfirmLines(ctx, sqlc.ConfirmLinesParams{UpdatedAt: now(), HouseholdID: householdID, PlaceID: placeID}); err != nil {
+	n, err := q.ConfirmLines(ctx, sqlc.ConfirmLinesParams{UpdatedAt: now(), HouseholdID: householdID, PlaceID: placeID})
+	if err != nil {
 		return nil, err
+	}
+	if n > 0 {
+		if err := recordLines(ctx, tx, householdID, "", placeID, "confirmed", nil, map[string]any{"count": n}); err != nil {
+			return nil, err
+		}
 	}
 	return q.ListLines(ctx, sqlc.ListLinesParams{HouseholdID: householdID, PlaceID: placeID})
 }
@@ -192,8 +244,8 @@ func rawJSON(v any) json.RawMessage { b, _ := json.Marshal(v); return b }
 
 // PromoteLine turns a contents line into a draft item in the same container
 // and soft-deletes the line (it keeps item_id). Promoting twice returns the
-// same item. Linking the contents photo to the item is the photos feature's
-// job; the line's photo_id is still readable on the line.
+// same item. The contents photo is linked to the new item through
+// LinkPromotedPhoto (set by the server wiring).
 func PromoteLine(ctx context.Context, tx *sql.Tx, householdID, userID, lineID string) (sqlc.Item, error) {
 	q := sqlc.New(tx)
 	l, err := getLine(ctx, q, householdID, lineID)
@@ -210,7 +262,7 @@ func PromoteLine(ctx context.Context, tx *sql.Tx, householdID, userID, lineID st
 	if l.Category.Valid {
 		f["category"] = rawJSON(l.Category.String)
 	}
-	item, _, err := CreateItem(ctx, tx, householdID, userID, NewItem{Fields: f})
+	item, _, err := CreateItem(ctx, tx, householdID, userID, NewItem{Fields: f, fromLine: lineID})
 	if err != nil {
 		return item, err
 	}
@@ -219,8 +271,17 @@ func PromoteLine(ctx context.Context, tx *sql.Tx, householdID, userID, lineID st
 		HouseholdID: householdID, ID: lineID}); err != nil {
 		return item, err
 	}
+	if LinkPromotedPhoto != nil && l.PhotoID.Valid {
+		if err := LinkPromotedPhoto(ctx, tx, householdID, l.PhotoID.String, item.ID); err != nil {
+			return item, err
+		}
+	}
 	return item, nil
 }
+
+// LinkPromotedPhoto links a promoted line's contents photo to the new item
+// as its first photo. The photos feature sets it at start-up.
+var LinkPromotedPhoto func(ctx context.Context, tx *sql.Tx, householdID, photoID, itemID string) error
 
 // PromoteAllLines promotes every live line of a container.
 func PromoteAllLines(ctx context.Context, tx *sql.Tx, householdID, userID, placeID string) ([]sqlc.Item, error) {

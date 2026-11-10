@@ -188,7 +188,7 @@ const deleteExpiredSessions = `-- name: DeleteExpiredSessions :exec
 DELETE FROM sessions WHERE expires_at < ?
 `
 
-// scope: global
+// scope: global (housekeeping across every household)
 func (q *Queries) DeleteExpiredSessions(ctx context.Context, expiresAt string) error {
 	_, err := q.db.ExecContext(ctx, deleteExpiredSessions, expiresAt)
 	return err
@@ -269,7 +269,7 @@ type DeleteOtherUserSessionsParams struct {
 	ID     string
 }
 
-// scope: global
+// scope: global (sessions belong to a user across all households (sign out other devices))
 func (q *Queries) DeleteOtherUserSessions(ctx context.Context, arg DeleteOtherUserSessionsParams) error {
 	_, err := q.db.ExecContext(ctx, deleteOtherUserSessions, arg.UserID, arg.ID)
 	return err
@@ -279,7 +279,7 @@ const deleteSession = `-- name: DeleteSession :exec
 DELETE FROM sessions WHERE id = ?
 `
 
-// scope: global
+// scope: global (logout removes the caller's own session by id)
 func (q *Queries) DeleteSession(ctx context.Context, id string) error {
 	_, err := q.db.ExecContext(ctx, deleteSession, id)
 	return err
@@ -289,7 +289,7 @@ const deleteUserSessions = `-- name: DeleteUserSessions :exec
 DELETE FROM sessions WHERE user_id = ?
 `
 
-// scope: global
+// scope: global (sessions belong to a user across all households (password change, sign out everywhere))
 func (q *Queries) DeleteUserSessions(ctx context.Context, userID string) error {
 	_, err := q.db.ExecContext(ctx, deleteUserSessions, userID)
 	return err
@@ -731,7 +731,7 @@ type TouchAccessTokenParams struct {
 	ID         string
 }
 
-// scope: global
+// scope: global (runs after the bearer token was resolved; addressed by the token's own row id)
 func (q *Queries) TouchAccessToken(ctx context.Context, arg TouchAccessTokenParams) error {
 	_, err := q.db.ExecContext(ctx, touchAccessToken, arg.LastUsedAt, arg.ID)
 	return err
@@ -762,7 +762,7 @@ type TouchSessionParams struct {
 	ID         string
 }
 
-// scope: global
+// scope: global (bumps the expiry of the caller's own session, addressed by its unguessable row id)
 func (q *Queries) TouchSession(ctx context.Context, arg TouchSessionParams) error {
 	_, err := q.db.ExecContext(ctx, touchSession, arg.LastSeenAt, arg.ExpiresAt, arg.ID)
 	return err
@@ -885,7 +885,7 @@ type UseResetInviteParams struct {
 	ID        string
 }
 
-// scope: global
+// scope: global (a reset link is opened without a session and is addressed by its own row id)
 func (q *Queries) UseResetInvite(ctx context.Context, arg UseResetInviteParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, useResetInvite,
 		arg.UsedAt,

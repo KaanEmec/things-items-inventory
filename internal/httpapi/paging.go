@@ -11,19 +11,25 @@ const (
 	MaxLimit     = 200
 )
 
-// Page is the response shape of every list endpoint. NextCursor is empty
-// when there are no more items.
+// Page is the response shape of every list endpoint (spec §5):
+// {"data":[…],"next_cursor":"…"|null}. NextCursor is nil, and encodes as
+// null, when there are no more items.
 type Page[T any] struct {
-	Items      []T    `json:"items"`
-	NextCursor string `json:"next_cursor"`
+	Data       []T     `json:"data"`
+	NextCursor *string `json:"next_cursor"`
 }
 
-// NewPage builds a Page, making sure items encodes as [] and not null.
-func NewPage[T any](items []T, nextCursor string) Page[T] {
+// NewPage builds a Page, making sure data encodes as [] and not null. An
+// empty next means there is no next page.
+func NewPage[T any](items []T, next string) Page[T] {
 	if items == nil {
 		items = []T{}
 	}
-	return Page[T]{Items: items, NextCursor: nextCursor}
+	p := Page[T]{Data: items}
+	if next != "" {
+		p.NextCursor = &next
+	}
+	return p
 }
 
 // ParsePaging reads ?cursor=&limit=. The cursor is opaque to this package.

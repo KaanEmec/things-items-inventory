@@ -48,7 +48,7 @@ JOIN memberships m ON m.household_id = s.household_id AND m.user_id = s.user_id
 WHERE s.token_hash = ?;
 
 -- name: TouchSession :exec
--- scope: global
+-- scope: global (bumps the expiry of the caller's own session, addressed by its unguessable row id)
 UPDATE sessions SET last_seen_at = ?, expires_at = ? WHERE id = ?;
 
 -- name: SetSessionHousehold :exec
@@ -56,19 +56,19 @@ UPDATE sessions SET last_seen_at = ?, expires_at = ? WHERE id = ?;
 UPDATE sessions SET household_id = ? WHERE id = ? AND user_id = ?;
 
 -- name: DeleteSession :exec
--- scope: global
+-- scope: global (logout removes the caller's own session by id)
 DELETE FROM sessions WHERE id = ?;
 
 -- name: DeleteUserSessions :exec
--- scope: global
+-- scope: global (sessions belong to a user across all households (password change, sign out everywhere))
 DELETE FROM sessions WHERE user_id = ?;
 
 -- name: DeleteOtherUserSessions :exec
--- scope: global
+-- scope: global (sessions belong to a user across all households (sign out other devices))
 DELETE FROM sessions WHERE user_id = ? AND id <> ?;
 
 -- name: DeleteExpiredSessions :exec
--- scope: global
+-- scope: global (housekeeping across every household)
 DELETE FROM sessions WHERE expires_at < ?;
 
 -- name: CreateResetInvite :exec
@@ -85,7 +85,7 @@ SELECT id, household_id, user_id, expires_at, used_at, revoked_at
 FROM invites WHERE kind = 'password_reset' AND token_hash = ?;
 
 -- name: UseResetInvite :execrows
--- scope: global
+-- scope: global (a reset link is opened without a session and is addressed by its own row id)
 UPDATE invites SET used_at = ?, used_by = ?, updated_at = ?
 WHERE id = ? AND used_at IS NULL AND revoked_at IS NULL;
 
@@ -158,5 +158,5 @@ JOIN memberships m ON m.household_id = t.household_id AND m.user_id = t.user_id
 WHERE t.token_hash = ?;
 
 -- name: TouchAccessToken :exec
--- scope: global
+-- scope: global (runs after the bearer token was resolved; addressed by the token's own row id)
 UPDATE access_tokens SET last_used_at = ? WHERE id = ?;

@@ -8,6 +8,7 @@ CREATE TABLE jobs (
     state        TEXT NOT NULL DEFAULT 'queued'
                  CHECK (state IN ('queued', 'running', 'done', 'failed', 'cancelled')),
     attempts     INTEGER NOT NULL DEFAULT 0,
+    deferrals    INTEGER NOT NULL DEFAULT 0, -- consecutive jobs.Later() waits
     run_after    TEXT NOT NULL,
     last_error   TEXT,
     result       TEXT CHECK (result IS NULL OR json_valid(result)),

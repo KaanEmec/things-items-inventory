@@ -529,3 +529,64 @@ func TestCrashLoopGivesUp(t *testing.T) {
 		t.Fatalf("runs=%d last_error=%q", runs.Load(), j.LastError)
 	}
 }
+
+func TestLaterSparesAttemptAndWaits(t *testing.T) {
+	d := dbtest.New(t)
+	hid := household(t, d)
+	q := New(d, fastOpts())
+	var calls atomic.Int32
+	var first, second atomic.Int64
+	q.Register("k", Handler{MaxAttempts: 1, Run: func(ctx context.Context, j Job) (json.RawMessage, error) {
+		if calls.Add(1) == 1 {
+			first.Store(time.Now().UnixNano())
+			return nil, Later(errors.New("AI is paused"), 150*time.Millisecond)
+		}
+		second.Store(time.Now().UnixNano())
+		if j.Attempts != 1 {
+			return nil, Permanent(errors.New("attempt was counted"))
+		}
+		return nil, nil
+	}})
+	start(t, q)
+	jid, _ := q.Enqueue(context.Background(), nil, Job{HouseholdID: hid, Kind: "k"})
+	for calls.Load() < 1 {
+		time.Sleep(2 * time.Millisecond)
+	}
+	var j Job
+	for {
+		j, _ = q.Get(context.Background(), hid, jid)
+		if j.State == StateQueued {
+			break
+		}
+		time.Sleep(2 * time.Millisecond)
+	}
+	if j.Attempts != 0 || j.Deferrals != 1 || j.LastError != "deferred: AI is paused" || !j.RunAfter.After(time.Now()) {
+		t.Fatalf("after deferral: %+v", j)
+	}
+	j = waitState(t, q, hid, jid, StateDone)
+	if gap := time.Duration(second.Load() - first.Load()); gap < 140*time.Millisecond {
+		t.Fatalf("ran again after %s, want >= 150ms", gap)
+	}
+	if j.Attempts != 1 || j.Deferrals != 1 {
+		t.Fatalf("attempts=%d deferrals=%d", j.Attempts, j.Deferrals)
+	}
+}
+
+func TestLaterCap(t *testing.T) {
+	d := dbtest.New(t)
+	hid := household(t, d)
+	opts := fastOpts()
+	opts.MaxDeferrals = 3
+	q := New(d, opts)
+	var calls atomic.Int32
+	q.Register("k", Handler{Run: func(ctx context.Context, j Job) (json.RawMessage, error) {
+		calls.Add(1)
+		return nil, Later(errors.New("rate limited"), time.Millisecond)
+	}})
+	start(t, q)
+	jid, _ := q.Enqueue(context.Background(), nil, Job{HouseholdID: hid, Kind: "k"})
+	j := waitState(t, q, hid, jid, StateFailed)
+	if calls.Load() != 4 || j.Attempts != 1 || !strings.Contains(j.LastError, "gave up after 3 waits: rate limited") {
+		t.Fatalf("calls=%d attempts=%d last_error=%q", calls.Load(), j.Attempts, j.LastError)
+	}
+}

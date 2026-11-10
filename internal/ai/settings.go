@@ -14,11 +14,14 @@ import (
 	"github.com/kaanemec/things-items-inventory/internal/db"
 	"github.com/kaanemec/things-items-inventory/internal/db/sqlc"
 	"github.com/kaanemec/things-items-inventory/internal/httpapi"
+	"github.com/kaanemec/things-items-inventory/internal/id"
 )
 
 // Routes registers the /settings/ai endpoints.
 func (s *Service) Routes(mux *httpapi.Mux) {
 	mux.HandleFunc("GET /api/v1/settings/ai", auth.RequireSession(auth.ActionAIRead, s.get))
+	mux.HandleFunc("GET /api/v1/settings/ai/activity", auth.RequireSession(auth.ActionAIRead, s.activity))
+	mux.HandleFunc("GET /api/v1/settings/ai/usage", auth.RequireSession(auth.ActionAIRead, s.usage))
 	mux.HandleFunc("PUT /api/v1/settings/ai/{role}", auth.RequireSession(auth.ActionAISettings, s.put))
 	mux.HandleFunc("DELETE /api/v1/settings/ai/{role}", auth.RequireSession(auth.ActionAISettings, s.delete))
 	mux.HandleFunc("POST /api/v1/settings/ai/{role}/test", auth.RequireSession(auth.ActionAISettings, s.test))
@@ -40,6 +43,7 @@ type profileView struct {
 	TestedAt     *string         `json:"tested_at"`
 	FailingSince *string         `json:"failing_since"`
 	UpdatedAt    *string         `json:"updated_at"`
+	Paused       *bool           `json:"paused,omitempty"` // household AI pause; set by GET only
 }
 
 func nullStr(n sql.NullString) *string {
@@ -91,14 +95,18 @@ func (s *Service) get(w http.ResponseWriter, r *http.Request) {
 		httpapi.WriteError(w, err)
 		return
 	}
+	paused, err := s.IsPaused(r.Context(), auth.HouseholdID(r.Context()))
+	if err != nil {
+		httpapi.WriteError(w, err)
+		return
+	}
 	byRole := map[Role]*sqlc.AiProfile{}
 	for i := range rows {
 		byRole[Role(rows[i].Role)] = &rows[i]
 	}
-	httpapi.WriteJSON(w, http.StatusOK, map[Role]profileView{
-		RoleVision: s.view(RoleVision, byRole[RoleVision]),
-		RoleText:   s.view(RoleText, byRole[RoleText]),
-	})
+	vv, tv := s.view(RoleVision, byRole[RoleVision]), s.view(RoleText, byRole[RoleText])
+	vv.Paused, tv.Paused = &paused, &paused
+	httpapi.WriteJSON(w, http.StatusOK, map[Role]profileView{RoleVision: vv, RoleText: tv})
 }
 
 func roleParam(r *http.Request) (Role, error) {
@@ -258,5 +266,12 @@ func (s *Service) Seed(ctx context.Context, d *db.DB, householdID string) (marke
 		HouseholdID: householdID, Role: string(RoleVision), BaseUrl: "https://b-secret-ai-host.example.com/v1",
 		Model: sql.NullString{String: "b-secret-ai-model", Valid: true}, SameAsVision: 1,
 		UpdatedAt: time.Now().UTC().Format(stampLayout)})
-	return []string{"b-secret-ai-host.example.com", "b-secret-ai-model"}, err
+	if err != nil {
+		return nil, err
+	}
+	err = sqlc.New(d.Write).InsertAIActivity(ctx, sqlc.InsertAIActivityParams{
+		ID: id.New(), HouseholdID: householdID, At: time.Now().UTC().Format(stampLayout), Feature: string(FeatureItemDraft),
+		Role: string(RoleVision), Model: "b-secret-activity-model", DurationMs: 1, Ok: 0,
+		ErrorCode: sql.NullString{String: "other", Valid: true}, Error: sql.NullString{String: "b-secret-activity-error", Valid: true}})
+	return []string{"b-secret-ai-host.example.com", "b-secret-ai-model", "b-secret-activity-model", "b-secret-activity-error"}, err
 }

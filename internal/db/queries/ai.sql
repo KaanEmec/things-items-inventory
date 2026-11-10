@@ -39,3 +39,38 @@ UPDATE ai_profiles SET failing_since = NULL WHERE household_id = ? AND role = ? 
 
 -- name: DeleteAIProfile :execrows
 DELETE FROM ai_profiles WHERE household_id = ? AND role = ?;
+
+-- name: SetAIOutputModeIfUnset :exec
+-- Remember the structured-output mode that auto mode found, unless a test or
+-- an earlier request already did.
+UPDATE ai_profiles SET output_mode = ?
+WHERE household_id = ? AND role = ? AND output_mode IS NULL;
+
+-- name: IsAIPaused :one
+-- scope: global (households.id is the household; the table has no household_id column)
+SELECT ai_paused FROM households WHERE id = ?;
+
+-- name: InsertAIActivity :exec
+INSERT INTO ai_activity (id, household_id, at, feature, role, model, tokens_in, tokens_out, cost, duration_ms, ok, error_code, error, job_id, item_id)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+-- name: ListAIActivity :many
+-- Newest first. Keyset page: pass the (at, id) of the last row of the previous
+-- page, or '9999-12-31T23:59:59.999Z' and '~' for the first page.
+SELECT * FROM ai_activity
+WHERE household_id = sqlc.arg(household_id)
+  AND (at < sqlc.arg(before_at) OR (at = sqlc.arg(before_at) AND id < sqlc.arg(before_id)))
+ORDER BY at DESC, id DESC
+LIMIT sqlc.arg(max_rows);
+
+-- name: AIUsageByRole :many
+SELECT role,
+       COUNT(*) AS requests,
+       CAST(COALESCE(SUM(CASE WHEN ok = 0 THEN 1 ELSE 0 END), 0) AS INTEGER) AS failures,
+       CAST(COALESCE(SUM(tokens_in), 0) AS INTEGER) AS tokens_in,
+       CAST(COALESCE(SUM(tokens_out), 0) AS INTEGER) AS tokens_out,
+       CAST(COALESCE(SUM(cost), 0) AS REAL) AS cost
+FROM ai_activity
+WHERE household_id = sqlc.arg(household_id) AND at >= sqlc.arg(from_at) AND at < sqlc.arg(to_at)
+GROUP BY role
+ORDER BY role;

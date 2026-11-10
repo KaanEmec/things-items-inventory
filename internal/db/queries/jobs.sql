@@ -7,6 +7,7 @@ RETURNING *;
 SELECT * FROM jobs WHERE household_id = ? AND id = ?;
 
 -- name: ClaimJob :one
+-- scope: global (the worker pool serves every household; it picks the next queued job across all of them)
 -- Round-robin across households (the one claimed from longest ago first),
 -- newest job first within a household.
 UPDATE jobs
@@ -41,6 +42,15 @@ SET state = 'queued', run_after = sqlc.arg(run_after), last_error = sqlc.arg(las
 WHERE id = sqlc.arg(id) AND state = 'running'
 RETURNING *;
 
+-- name: DeferJob :one
+-- scope: global (the worker pool serves every household and addresses a running job by id)
+-- The handler asked to wait: back to queued, the attempt not counted.
+UPDATE jobs
+SET state = 'queued', attempts = MAX(attempts - 1, 0), deferrals = deferrals + 1,
+    run_after = sqlc.arg(run_after), last_error = sqlc.arg(last_error), updated_at = sqlc.arg(now)
+WHERE id = sqlc.arg(id) AND state = 'running'
+RETURNING *;
+
 -- name: ReleaseJob :one
 -- scope: global (the worker pool serves every household and addresses jobs by id)
 -- Puts a running job back without counting the attempt (shutdown).
@@ -65,7 +75,7 @@ RETURNING *;
 
 -- name: RetryJob :one
 UPDATE jobs
-SET state = 'queued', attempts = 0, run_after = sqlc.arg(now), last_error = NULL, result = NULL,
+SET state = 'queued', attempts = 0, deferrals = 0, run_after = sqlc.arg(now), last_error = NULL, result = NULL,
     finished_at = NULL, updated_at = sqlc.arg(now)
 WHERE household_id = sqlc.arg(household_id) AND id = sqlc.arg(id) AND state = 'failed'
 RETURNING *;

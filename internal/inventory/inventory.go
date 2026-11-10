@@ -41,11 +41,16 @@ func (s *Service) Routes(mux *httpapi.Mux) {
 	admin := func(h http.HandlerFunc) http.HandlerFunc { return auth.Require(auth.ActionHomesManage, h) }
 
 	mux.HandleFunc("GET /api/v1/categories", read(s.getCategories))
+	mux.HandleFunc("GET /api/v1/me/recent-places", read(s.recentPlaces))
 
 	mux.HandleFunc("GET /api/v1/homes", read(s.listHomes))
 	mux.HandleFunc("POST /api/v1/homes", admin(s.postHome))
 	mux.HandleFunc("PATCH /api/v1/homes/{id}", admin(s.patchHome))
 	mux.HandleFunc("GET /api/v1/homes/{id}/tree", read(s.getTree))
+
+	mux.HandleFunc("GET /api/v1/history", read(s.householdHistory))
+	mux.HandleFunc("GET /api/v1/items/{id}/history", read(s.itemHistory))
+	mux.HandleFunc("GET /api/v1/places/{id}/history", read(s.placeHistory))
 
 	mux.HandleFunc("GET /api/v1/places/{id}", read(s.getPlace))
 	mux.HandleFunc("POST /api/v1/places", write(s.postPlace))
@@ -121,22 +126,7 @@ func boolInt(b bool) int64 {
 
 func isNoRows(err error) bool { return errors.Is(err, sql.ErrNoRows) }
 
-// ListPage is the list response shape of spec §5: {"data":[…],"next_cursor":…}.
-type ListPage[T any] struct {
-	Data       []T     `json:"data"`
-	NextCursor *string `json:"next_cursor"`
-}
-
-func newPage[T any](data []T, next string) ListPage[T] {
-	if data == nil {
-		data = []T{}
-	}
-	p := ListPage[T]{Data: data}
-	if next != "" {
-		p.NextCursor = &next
-	}
-	return p
-}
+func newPage[T any](data []T, next string) httpapi.Page[T] { return httpapi.NewPage(data, next) }
 
 func invalid(field, msg string) *httpapi.Error {
 	return httpapi.Unprocessable(msg, map[string]string{field: msg})

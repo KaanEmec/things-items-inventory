@@ -80,6 +80,13 @@ func sampleRoutes(mux *httpapi.Mux) {
 		}
 		httpapi.WriteJSON(w, http.StatusOK, httpapi.NewPage([]int{limit}, ""))
 	})
+	mux.HandleFunc("GET /api/v1/page-next", func(w http.ResponseWriter, _ *http.Request) {
+		httpapi.WriteJSON(w, http.StatusOK, httpapi.NewPage([]int(nil), "abc"))
+	})
+	mux.HandleFunc("GET /api/v1/jpeg", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "image/jpeg")
+		w.Write(bytes.Repeat([]byte{0xff, 0xd8, 0xff}, 100))
+	})
 	mux.HandleFunc("GET /api/v1/panic", func(http.ResponseWriter, *http.Request) { panic("boom secret") })
 	mux.HandleFunc("GET /api/v1/plain-error", func(w http.ResponseWriter, _ *http.Request) {
 		httpapi.WriteError(w, io.ErrClosedPipe)
@@ -136,7 +143,7 @@ func TestSampleEndpoint(t *testing.T) {
 
 func TestPaging(t *testing.T) {
 	srv := httpapitest.Server(t, sampleRoutes)
-	if _, body := httpapitest.Do(t, srv, "GET", "/api/v1/sample", ""); !strings.Contains(body, `"items":[50]`) || !strings.Contains(body, `"next_cursor":""`) {
+	if _, body := httpapitest.Do(t, srv, "GET", "/api/v1/sample", ""); !strings.Contains(body, `"data":[50]`) || !strings.Contains(body, `"next_cursor":null`) {
 		t.Fatalf("default: %q", body)
 	}
 	if status, body := httpapitest.Do(t, srv, "GET", "/api/v1/sample?limit=201", ""); status != 400 || errBody(t, body).Fields["limit"] == "" {
@@ -164,6 +171,28 @@ func TestMiddlewareHeadersAndGzip(t *testing.T) {
 	}
 	if rec := get(t, "/"); rec.Header().Get("Content-Encoding") != "" {
 		t.Fatal("app should not be gzipped")
+	}
+}
+
+func TestPageNextCursor(t *testing.T) {
+	srv := httpapitest.Server(t, sampleRoutes)
+	if _, body := httpapitest.Do(t, srv, "GET", "/api/v1/page-next", ""); !strings.Contains(body, `"data":[]`) || !strings.Contains(body, `"next_cursor":"abc"`) {
+		t.Fatalf("next: %q", body)
+	}
+}
+
+func TestGzipSkipsImages(t *testing.T) {
+	for path, want := range map[string]string{"/api/v1/jpeg": "", "/api/v1/sample": "gzip"} {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest("GET", path, nil)
+		req.Header.Set("Accept-Encoding", "gzip")
+		httpapi.New("v", "b", app, sampleRoutes).ServeHTTP(rec, req)
+		if got := rec.Header().Get("Content-Encoding"); got != want {
+			t.Errorf("%s: Content-Encoding %q, want %q", path, got, want)
+		}
+		if want == "" && rec.Body.Len() != 300 {
+			t.Errorf("%s: body changed (%d bytes)", path, rec.Body.Len())
+		}
 	}
 }
 

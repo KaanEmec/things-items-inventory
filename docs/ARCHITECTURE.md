@@ -20,7 +20,7 @@ Details live elsewhere; this page is the map.
  │                 └── jobs (worker pool) ── ai (client)      │
  └───────┬───────────────────┬──────────────────────┬─────────┘
          ▼                   ▼                      ▼
-   /data/inventory.db   /data/photos/…      AI endpoints (optional)
+   /data/app.db         /data/photos/…      AI endpoints (optional)
    SQLite, WAL, FTS5    by content hash     "photo understanding" and
                                             "everything else"
 ```
@@ -32,6 +32,8 @@ Details live elsewhere; this page is the map.
 | `cmd/inventory` | Flags and env, start, graceful shutdown | E1 |
 | `internal/config` | Listen address, data directory, server-wide AI defaults | E1 |
 | `internal/db` | Open SQLite (one writer, many readers), embedded migrations, sqlc queries | E1 |
+| `internal/server` | Lists the features, wires them together (queue, photo hooks), builds the handler | E1 |
+| `internal/secret` | Instance key and encryption of stored API tokens | E5 |
 | `internal/httpapi` | Routes under `/api/v1`, JSON errors, middleware, serves the embedded app | E1 |
 | `internal/auth` | Users, sessions, households, roles, invites, access tokens | E2, E9 |
 | `internal/inventory` | Places tree, items, contents lines, boxes, events | E3, E8 |
@@ -43,6 +45,26 @@ Details live elsewhere; this page is the map.
 | `web/` | Svelte 5 + Vite + Tailwind v4 app, embedded into the binary | all |
 
 Packages are created by the job that first needs them, not in advance.
+
+**Adding a feature:** give the package a `Routes(mux *httpapi.Mux)` (and
+optionally a `Seed` that creates rows for one household) and append a
+`Feature` to `internal/server/server.go`. Its routes then exist in the app and
+in the cross-household test (`crosshousehold_test.go`), which tries every
+`{param}` with another household's IDs and expects 404.
+
+## Configuration
+
+| Variable | Meaning |
+|---|---|
+| `INVENTORY_ADDR` | Listen address, default `:8080` |
+| `INVENTORY_DATA` | Data directory (`app.db`, `photos/`, `secret.key`), default `./data`; `/data` in Docker |
+| `INVENTORY_PUBLIC_URL` | Address people use; `https://` makes cookies Secure and prefixes printed links |
+| `INVENTORY_TRUST_PROXY` | `1` takes the client address from `X-Forwarded-For` (only behind a proxy) |
+| `INVENTORY_SECRET_KEY` | Base64 key for stored tokens; empty uses `<data>/secret.key` |
+| `INVENTORY_AI_BLOCK_PRIVATE` | `1` refuses AI endpoints on private addresses |
+| `INVENTORY_AI_{VISION,TEXT}_{BASE_URL,TOKEN,MODEL}` | Server-wide AI defaults per role |
+
+`inventory healthcheck` probes `/api/health` (Docker `HEALTHCHECK`).
 
 ## Rules that shape the code
 
@@ -81,9 +103,7 @@ Packages are created by the job that first needs them, not in advance.
 | Drafts saved first, AI afterwards | Entry stays fast and works offline or without AI |
 | Boxes are places of kind "box" | Items, photos and search work without special cases |
 | MIT licence | Decided 2026-11-10 |
-
 ## Roadmap
 
-Ten epics, 50 jobs: foundations → accounts → places and items → search →
-AI settings → photo capture → quick add → moving → API and MCP → PWA and
-release. Order, dependencies and status are in the roadmap README.
+Ten epics, 50 jobs, from foundations to PWA and release; order and status
+are in the roadmap README.

@@ -119,19 +119,72 @@ func securityHeaders(next http.Handler) http.Handler {
 
 type gzipWriter struct {
 	http.ResponseWriter
-	gz *gzip.Writer
+	gz      *gzip.Writer
+	decided bool
+}
+
+// compressible reports whether a Content-Type is worth gzipping: text, JSON,
+// XML, SVG and the like. Images, video, fonts and archives already are
+// compressed.
+func compressible(ct string) bool {
+	ct = strings.ToLower(strings.TrimSpace(strings.SplitN(ct, ";", 2)[0]))
+	switch {
+	case strings.HasPrefix(ct, "text/"), strings.HasSuffix(ct, "+json"), strings.HasSuffix(ct, "+xml"):
+		return true
+	}
+	switch ct {
+	case "application/json", "application/xml", "application/javascript", "image/svg+xml", "application/x-ndjson":
+		return true
+	}
+	return false
+}
+
+// decide runs once, when the status is known, and chooses whether to compress.
+func (w *gzipWriter) decide(code int, first []byte) {
+	if w.decided {
+		return
+	}
+	w.decided = true
+	h := w.Header()
+	if h.Get("Content-Encoding") != "" || code == http.StatusNoContent || code == http.StatusNotModified ||
+		code == http.StatusPartialContent || code < 200 {
+		return
+	}
+	ct := h.Get("Content-Type")
+	if ct == "" && len(first) > 0 {
+		ct = http.DetectContentType(first)
+	}
+	if !compressible(ct) {
+		return
+	}
+	h.Del("Content-Length")
+	h.Set("Content-Encoding", "gzip")
+	w.gz = gzip.NewWriter(w.ResponseWriter)
 }
 
 func (w *gzipWriter) WriteHeader(code int) {
-	w.Header().Del("Content-Length")
+	w.decide(code, nil)
 	w.ResponseWriter.WriteHeader(code)
 }
 
-func (w *gzipWriter) Write(b []byte) (int, error) { return w.gz.Write(b) }
+func (w *gzipWriter) Write(b []byte) (int, error) {
+	w.decide(http.StatusOK, b)
+	if w.gz == nil {
+		return w.ResponseWriter.Write(b)
+	}
+	return w.gz.Write(b)
+}
+
+func (w *gzipWriter) close() {
+	if w.gz != nil {
+		w.gz.Close()
+	}
+}
 
 func (w *gzipWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
 
-// gzipAPI compresses /api/ responses for clients that accept gzip.
+// gzipAPI compresses /api/ responses for clients that accept gzip, except
+// those whose Content-Type is already compressed (photos).
 func gzipAPI(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !strings.HasPrefix(r.URL.Path, "/api/") || !strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
@@ -139,9 +192,8 @@ func gzipAPI(next http.Handler) http.Handler {
 			return
 		}
 		w.Header().Add("Vary", "Accept-Encoding")
-		w.Header().Set("Content-Encoding", "gzip")
-		gz := gzip.NewWriter(w)
-		defer gz.Close()
-		next.ServeHTTP(&gzipWriter{ResponseWriter: w, gz: gz}, r)
+		gw := &gzipWriter{ResponseWriter: w}
+		defer gw.close()
+		next.ServeHTTP(gw, r)
 	})
 }

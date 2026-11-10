@@ -10,6 +10,64 @@ import (
 	"database/sql"
 )
 
+const aIUsageByRole = `-- name: AIUsageByRole :many
+SELECT role,
+       COUNT(*) AS requests,
+       CAST(COALESCE(SUM(CASE WHEN ok = 0 THEN 1 ELSE 0 END), 0) AS INTEGER) AS failures,
+       CAST(COALESCE(SUM(tokens_in), 0) AS INTEGER) AS tokens_in,
+       CAST(COALESCE(SUM(tokens_out), 0) AS INTEGER) AS tokens_out,
+       CAST(COALESCE(SUM(cost), 0) AS REAL) AS cost
+FROM ai_activity
+WHERE household_id = ?1 AND at >= ?2 AND at < ?3
+GROUP BY role
+ORDER BY role
+`
+
+type AIUsageByRoleParams struct {
+	HouseholdID string
+	FromAt      string
+	ToAt        string
+}
+
+type AIUsageByRoleRow struct {
+	Role      string
+	Requests  int64
+	Failures  int64
+	TokensIn  int64
+	TokensOut int64
+	Cost      float64
+}
+
+func (q *Queries) AIUsageByRole(ctx context.Context, arg AIUsageByRoleParams) ([]AIUsageByRoleRow, error) {
+	rows, err := q.db.QueryContext(ctx, aIUsageByRole, arg.HouseholdID, arg.FromAt, arg.ToAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AIUsageByRoleRow
+	for rows.Next() {
+		var i AIUsageByRoleRow
+		if err := rows.Scan(
+			&i.Role,
+			&i.Requests,
+			&i.Failures,
+			&i.TokensIn,
+			&i.TokensOut,
+			&i.Cost,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const clearAIFailing = `-- name: ClearAIFailing :exec
 UPDATE ai_profiles SET failing_since = NULL WHERE household_id = ? AND role = ? AND failing_since IS NOT NULL
 `
@@ -89,6 +147,123 @@ func (q *Queries) GetAIProfile(ctx context.Context, arg GetAIProfileParams) (AiP
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const insertAIActivity = `-- name: InsertAIActivity :exec
+INSERT INTO ai_activity (id, household_id, at, feature, role, model, tokens_in, tokens_out, cost, duration_ms, ok, error_code, error, job_id, item_id)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+`
+
+type InsertAIActivityParams struct {
+	ID          string
+	HouseholdID string
+	At          string
+	Feature     string
+	Role        string
+	Model       string
+	TokensIn    sql.NullInt64
+	TokensOut   sql.NullInt64
+	Cost        sql.NullFloat64
+	DurationMs  int64
+	Ok          int64
+	ErrorCode   sql.NullString
+	Error       sql.NullString
+	JobID       sql.NullString
+	ItemID      sql.NullString
+}
+
+func (q *Queries) InsertAIActivity(ctx context.Context, arg InsertAIActivityParams) error {
+	_, err := q.db.ExecContext(ctx, insertAIActivity,
+		arg.ID,
+		arg.HouseholdID,
+		arg.At,
+		arg.Feature,
+		arg.Role,
+		arg.Model,
+		arg.TokensIn,
+		arg.TokensOut,
+		arg.Cost,
+		arg.DurationMs,
+		arg.Ok,
+		arg.ErrorCode,
+		arg.Error,
+		arg.JobID,
+		arg.ItemID,
+	)
+	return err
+}
+
+const isAIPaused = `-- name: IsAIPaused :one
+SELECT ai_paused FROM households WHERE id = ?
+`
+
+// scope: global (households.id is the household; the table has no household_id column)
+func (q *Queries) IsAIPaused(ctx context.Context, id string) (int64, error) {
+	row := q.db.QueryRowContext(ctx, isAIPaused, id)
+	var ai_paused int64
+	err := row.Scan(&ai_paused)
+	return ai_paused, err
+}
+
+const listAIActivity = `-- name: ListAIActivity :many
+SELECT id, household_id, at, feature, role, model, tokens_in, tokens_out, cost, duration_ms, ok, error_code, error, job_id, item_id FROM ai_activity
+WHERE household_id = ?1
+  AND (at < ?2 OR (at = ?2 AND id < ?3))
+ORDER BY at DESC, id DESC
+LIMIT ?4
+`
+
+type ListAIActivityParams struct {
+	HouseholdID string
+	BeforeAt    string
+	BeforeID    string
+	MaxRows     int64
+}
+
+// Newest first. Keyset page: pass the (at, id) of the last row of the previous
+// page, or '9999-12-31T23:59:59.999Z' and '~' for the first page.
+func (q *Queries) ListAIActivity(ctx context.Context, arg ListAIActivityParams) ([]AiActivity, error) {
+	rows, err := q.db.QueryContext(ctx, listAIActivity,
+		arg.HouseholdID,
+		arg.BeforeAt,
+		arg.BeforeID,
+		arg.MaxRows,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AiActivity
+	for rows.Next() {
+		var i AiActivity
+		if err := rows.Scan(
+			&i.ID,
+			&i.HouseholdID,
+			&i.At,
+			&i.Feature,
+			&i.Role,
+			&i.Model,
+			&i.TokensIn,
+			&i.TokensOut,
+			&i.Cost,
+			&i.DurationMs,
+			&i.Ok,
+			&i.ErrorCode,
+			&i.Error,
+			&i.JobID,
+			&i.ItemID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listAIProfiles = `-- name: ListAIProfiles :many
@@ -173,6 +348,24 @@ func (q *Queries) SaveAITest(ctx context.Context, arg SaveAITestParams) error {
 		arg.HouseholdID,
 		arg.Role,
 	)
+	return err
+}
+
+const setAIOutputModeIfUnset = `-- name: SetAIOutputModeIfUnset :exec
+UPDATE ai_profiles SET output_mode = ?
+WHERE household_id = ? AND role = ? AND output_mode IS NULL
+`
+
+type SetAIOutputModeIfUnsetParams struct {
+	OutputMode  sql.NullString
+	HouseholdID string
+	Role        string
+}
+
+// Remember the structured-output mode that auto mode found, unless a test or
+// an earlier request already did.
+func (q *Queries) SetAIOutputModeIfUnset(ctx context.Context, arg SetAIOutputModeIfUnsetParams) error {
+	_, err := q.db.ExecContext(ctx, setAIOutputModeIfUnset, arg.OutputMode, arg.HouseholdID, arg.Role)
 	return err
 }
 

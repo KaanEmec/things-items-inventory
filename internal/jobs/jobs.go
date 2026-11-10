@@ -57,6 +57,7 @@ type Job struct {
 	Payload     json.RawMessage // JSON; empty means {}
 	State       string
 	Attempts    int
+	Deferrals   int       // consecutive Later waits
 	RunAfter    time.Time // zero on Enqueue means now
 	LastError   string
 	Result      json.RawMessage
@@ -92,6 +93,24 @@ func Permanent(err error) error {
 	return permanentError{err}
 }
 
+type laterError struct {
+	err   error
+	after time.Duration
+}
+
+func (e laterError) Error() string { return e.err.Error() }
+func (e laterError) Unwrap() error { return e.err }
+
+// Later asks the queue to run the job again after the given wait without
+// counting an attempt (AI paused, rate limited). err is the readable reason
+// kept in last_error. A job that defers MaxDeferrals times in a row fails.
+func Later(err error, after time.Duration) error {
+	if err == nil {
+		err = errors.New("waiting")
+	}
+	return laterError{err, after}
+}
+
 // Coded can be implemented by handler errors to give last_error a typed code
 // (for example "invalid_token"). Without it the code is "error".
 type Coded interface{ ErrorCode() string }
@@ -102,6 +121,7 @@ type Options struct {
 	PollInterval    time.Duration   // idle fallback poll, default 10s
 	Backoff         []time.Duration // retry delays, default 5s, 30s, 2m, 10m
 	StopGrace       time.Duration   // time running handlers get on Stop, default 5s
+	MaxDeferrals    int             // consecutive Later waits before failing, default 500
 	Retention       time.Duration   // finished jobs kept, default 30 days
 	CleanupInterval time.Duration   // default 24h
 	Now             func() time.Time
@@ -142,6 +162,9 @@ func New(d *db.DB, opts Options) *Queue {
 	}
 	if len(opts.Backoff) == 0 {
 		opts.Backoff = []time.Duration{5 * time.Second, 30 * time.Second, 2 * time.Minute, 10 * time.Minute}
+	}
+	if opts.MaxDeferrals <= 0 {
+		opts.MaxDeferrals = 500
 	}
 	if opts.StopGrace <= 0 {
 		opts.StopGrace = 5 * time.Second
@@ -201,7 +224,7 @@ func parseTime(s string) time.Time {
 func fromRow(r sqlc.Job) Job {
 	j := Job{
 		ID: r.ID, HouseholdID: r.HouseholdID, Kind: r.Kind,
-		Payload: json.RawMessage(r.Payload), State: r.State, Attempts: int(r.Attempts),
+		Payload: json.RawMessage(r.Payload), State: r.State, Attempts: int(r.Attempts), Deferrals: int(r.Deferrals),
 		RunAfter: parseTime(r.RunAfter), LastError: r.LastError.String,
 		CreatedBy: r.CreatedBy.String, ItemID: r.ItemID.String, PlaceID: r.PlaceID.String,
 		CreatedAt: parseTime(r.CreatedAt), UpdatedAt: parseTime(r.UpdatedAt),
@@ -506,6 +529,15 @@ func (q *Queue) run(job Job) {
 		// Shutting down (Stop, or the context given to Start ended).
 		q.release(ctx, job.ID)
 	default:
+		var later laterError
+		if errors.As(err, &later) {
+			if job.Deferrals >= q.opts.MaxDeferrals {
+				q.finishFail(ctx, job, "deferred_too_long", fmt.Sprintf("gave up after %d waits: %s", job.Deferrals, err))
+				return
+			}
+			q.deferJob(ctx, job, later)
+			return
+		}
 		code := "error"
 		var coded Coded
 		switch {
@@ -583,6 +615,16 @@ func (q *Queue) delay(ctx context.Context, job Job, code, msg string) {
 	q.report(row, err)
 	if err == nil {
 		time.AfterFunc(d, q.wake)
+	}
+}
+
+func (q *Queue) deferJob(ctx context.Context, job Job, l laterError) {
+	now := q.now()
+	row, err := sqlc.New(q.db.Write).DeferJob(ctx, sqlc.DeferJobParams{
+		RunAfter: fmtTime(now.Add(l.after)), LastError: lastError("deferred", l.err.Error()), Now: fmtTime(now), ID: job.ID})
+	q.report(row, err)
+	if err == nil {
+		time.AfterFunc(l.after, q.wake)
 	}
 }
 

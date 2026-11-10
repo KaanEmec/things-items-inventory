@@ -8,6 +8,7 @@ import (
 	"context"
 	"io/fs"
 	"net/http"
+	"time"
 
 	"github.com/kaanemec/things-items-inventory/internal/ai"
 	"github.com/kaanemec/things-items-inventory/internal/auth"
@@ -15,7 +16,10 @@ import (
 	"github.com/kaanemec/things-items-inventory/internal/db"
 	"github.com/kaanemec/things-items-inventory/internal/httpapi"
 	"github.com/kaanemec/things-items-inventory/internal/inventory"
+	"github.com/kaanemec/things-items-inventory/internal/jobs"
 	"github.com/kaanemec/things-items-inventory/internal/photos"
+	"github.com/kaanemec/things-items-inventory/internal/search"
+	"github.com/kaanemec/things-items-inventory/internal/stream"
 )
 
 // SeedResult is what a feature's Seed reports about the rows it created.
@@ -44,13 +48,23 @@ type Feature struct {
 
 // Features lists every feature, auth first. To add a feature package, append
 // a Feature here: its routes then appear in the app and in the
-// cross-household test, with no change to the test.
+// cross-household test, with no change to the test. The job queue it creates
+// is not started; New returns one that is.
 func Features(d *db.DB, cfg config.Config) []Feature {
+	hub := stream.New()
+	return features(d, cfg, jobs.New(d, jobs.Options{OnChange: hub.OnJob}), hub)
+}
+
+func features(d *db.DB, cfg config.Config, q *jobs.Queue, hub *stream.Hub) []Feature {
+	hub.AttachInventory()
 	authSvc := auth.New(d, cfg)
 	authSvc.AddSetupHook(inventory.SeedStarter)
 	inventorySvc := inventory.New(d)
 	aiSvc := ai.NewService(d, cfg)
 	photoSvc := photos.New(d, cfg)
+	searchSvc := search.New(d) // subscribes the index to inventory.OnChange
+	photoSvc.UseQueue(q)
+	linkPhotos(d, photoSvc)
 	return []Feature{
 		{Name: "auth", Routes: authSvc.Routes},
 		{Name: "ai", Routes: aiSvc.Routes, Seed: func(ctx context.Context, d *db.DB, hid string) (SeedResult, error) {
@@ -65,6 +79,12 @@ func Features(d *db.DB, cfg config.Config) []Feature {
 			paths, markers, err := photoSvc.Seed(ctx, d, hid)
 			return SeedResult{PathValues: paths, Markers: markers}, err
 		}},
+		{Name: "search", Routes: searchSvc.Routes, Seed: func(ctx context.Context, d *db.DB, hid string) (SeedResult, error) {
+			m, err := searchSvc.Seed(ctx, d, hid)
+			return SeedResult{Markers: m}, err
+		}},
+		{Name: "stream", Routes: hub.Routes},
+		jobsFeature(q),
 	}
 }
 
@@ -77,7 +97,31 @@ func Routes(features []Feature) []httpapi.Routes {
 	return out
 }
 
-// Handler builds the complete HTTP handler.
+// Handler builds the complete HTTP handler with a queue that is not started.
 func Handler(version, buildTime string, app fs.FS, d *db.DB, cfg config.Config) http.Handler {
 	return httpapi.New(version, buildTime, app, Routes(Features(d, cfg))...)
+}
+
+// App is the running application: the handler and the background queue.
+type App struct {
+	Handler http.Handler
+	Queue   *jobs.Queue
+	Hub     *stream.Hub
+}
+
+// New builds the application. Call Start before serving and Stop on shutdown.
+func New(version, buildTime string, app fs.FS, d *db.DB, cfg config.Config) *App {
+	hub := stream.New()
+	q := jobs.New(d, jobs.Options{OnChange: hub.OnJob})
+	return &App{Queue: q, Hub: hub, Handler: httpapi.New(version, buildTime, app, Routes(features(d, cfg, q, hub))...)}
+}
+
+// Start starts the job workers; they stop when ctx ends or Stop is called.
+func (a *App) Start(ctx context.Context) error { return a.Queue.Start(ctx) }
+
+// Stop stops the workers, giving running jobs a few seconds to finish.
+func (a *App) Stop() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	return a.Queue.Stop(ctx)
 }

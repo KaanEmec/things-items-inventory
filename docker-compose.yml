@@ -20,15 +20,11 @@ services:
       # INVENTORY_AI_TEXT_BASE_URL: "https://openrouter.ai/api/v1"
       # INVENTORY_AI_TEXT_TOKEN: ""
       # INVENTORY_AI_TEXT_MODEL: ""
-    # The image has no shell or curl, so the orchestrator must probe over HTTP
-    # (Coolify: set a health check on path /api/health, port 8080). Compose
-    # cannot probe from outside the container; enable this once the binary has
-    # a `healthcheck` subcommand:
-    # healthcheck:
-    #   test: ["CMD", "/inventory", "healthcheck"]
-    #   interval: 30s
-    #   timeout: 5s
-    #   retries: 3
+    healthcheck:
+      test: ["CMD", "/inventory", "healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
 volumes:
   inventory-data:

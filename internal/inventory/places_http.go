@@ -9,9 +9,10 @@ import (
 	"github.com/kaanemec/things-items-inventory/internal/httpapi"
 )
 
-// tx runs fn in a write transaction for the request.
+// tx runs fn in a write transaction for the request; the live stream hears of
+// the changes once it committed.
 func (s *Service) tx(w http.ResponseWriter, r *http.Request, fn func(tx *sql.Tx) error) bool {
-	if err := s.db.Tx(r.Context(), fn); err != nil {
+	if err := InTx(r.Context(), s.db, fn); err != nil {
 		httpapi.WriteError(w, err)
 		return false
 	}

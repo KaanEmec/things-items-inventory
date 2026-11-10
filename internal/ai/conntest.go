@@ -29,6 +29,10 @@ var (
 	textTestSchema   = json.RawMessage(`{"type":"object","properties":{"brand":{"type":"string"},"model":{"type":"string"},"color":{"type":"string"},"category":{"type":"string"}},"required":["brand","model","color","category"],"additionalProperties":false}`)
 )
 
+// testHouseholdKey carries the household into runTest so the test request is
+// logged as activity (feature "test") like any other.
+type testHouseholdKey struct{}
+
 type step struct {
 	ID      string `json:"id"`
 	OK      *bool  `json:"ok"` // null: not run because an earlier step failed
@@ -239,7 +243,7 @@ func (s *Service) test(w http.ResponseWriter, r *http.Request) {
 		httpapi.WriteError(w, err)
 		return
 	}
-	tctx, cancel := context.WithTimeout(ctx, testTimeout)
+	tctx, cancel := context.WithTimeout(context.WithValue(ctx, testHouseholdKey{}, hid), testTimeout)
 	defer cancel()
 	res, mode, failKind := s.runTest(tctx, role, cfg)
 	res.TestedAt = time.Now().UTC().Format(stampLayout)
@@ -359,6 +363,9 @@ func (s *Service) runTest(ctx context.Context, role Role, cfg Config) (testResul
 	cfg.Mode = ModeAuto
 	t1 := time.Now()
 	res, err := s.client.Complete(ctx, cfg, req, validate)
+	if hid, ok := ctx.Value(testHouseholdKey{}).(string); ok {
+		s.record(context.WithoutCancel(ctx), hid, role, FeatureTest, cfg, res, err, t1, time.Since(t1), Ref{})
+	}
 	if err == nil {
 		if !tokenDecided {
 			ss.pass("token", "", 0)

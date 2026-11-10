@@ -14,7 +14,7 @@ const cancelJob = `-- name: CancelJob :one
 UPDATE jobs
 SET state = 'cancelled', finished_at = ?1, updated_at = ?1
 WHERE household_id = ?2 AND id = ?3 AND state IN ('queued', 'running')
-RETURNING id, household_id, created_at, updated_at, kind, payload, state, attempts, run_after, last_error, result, created_by, item_id, place_id, started_at, finished_at
+RETURNING id, household_id, created_at, updated_at, kind, payload, state, attempts, deferrals, run_after, last_error, result, created_by, item_id, place_id, started_at, finished_at
 `
 
 type CancelJobParams struct {
@@ -35,6 +35,7 @@ func (q *Queries) CancelJob(ctx context.Context, arg CancelJobParams) (Job, erro
 		&i.Payload,
 		&i.State,
 		&i.Attempts,
+		&i.Deferrals,
 		&i.RunAfter,
 		&i.LastError,
 		&i.Result,
@@ -57,9 +58,10 @@ WHERE id = (
              j.created_at DESC, j.id DESC
     LIMIT 1
 )
-RETURNING id, household_id, created_at, updated_at, kind, payload, state, attempts, run_after, last_error, result, created_by, item_id, place_id, started_at, finished_at
+RETURNING id, household_id, created_at, updated_at, kind, payload, state, attempts, deferrals, run_after, last_error, result, created_by, item_id, place_id, started_at, finished_at
 `
 
+// scope: global (the worker pool serves every household; it picks the next queued job across all of them)
 // Round-robin across households (the one claimed from longest ago first),
 // newest job first within a household.
 func (q *Queries) ClaimJob(ctx context.Context, now sql.NullString) (Job, error) {
@@ -74,6 +76,7 @@ func (q *Queries) ClaimJob(ctx context.Context, now sql.NullString) (Job, error)
 		&i.Payload,
 		&i.State,
 		&i.Attempts,
+		&i.Deferrals,
 		&i.RunAfter,
 		&i.LastError,
 		&i.Result,
@@ -90,7 +93,7 @@ const completeJob = `-- name: CompleteJob :one
 UPDATE jobs
 SET state = 'done', result = ?1, last_error = NULL, finished_at = ?2, updated_at = ?2
 WHERE id = ?3 AND state = 'running'
-RETURNING id, household_id, created_at, updated_at, kind, payload, state, attempts, run_after, last_error, result, created_by, item_id, place_id, started_at, finished_at
+RETURNING id, household_id, created_at, updated_at, kind, payload, state, attempts, deferrals, run_after, last_error, result, created_by, item_id, place_id, started_at, finished_at
 `
 
 type CompleteJobParams struct {
@@ -112,6 +115,54 @@ func (q *Queries) CompleteJob(ctx context.Context, arg CompleteJobParams) (Job, 
 		&i.Payload,
 		&i.State,
 		&i.Attempts,
+		&i.Deferrals,
+		&i.RunAfter,
+		&i.LastError,
+		&i.Result,
+		&i.CreatedBy,
+		&i.ItemID,
+		&i.PlaceID,
+		&i.StartedAt,
+		&i.FinishedAt,
+	)
+	return i, err
+}
+
+const deferJob = `-- name: DeferJob :one
+UPDATE jobs
+SET state = 'queued', attempts = MAX(attempts - 1, 0), deferrals = deferrals + 1,
+    run_after = ?1, last_error = ?2, updated_at = ?3
+WHERE id = ?4 AND state = 'running'
+RETURNING id, household_id, created_at, updated_at, kind, payload, state, attempts, deferrals, run_after, last_error, result, created_by, item_id, place_id, started_at, finished_at
+`
+
+type DeferJobParams struct {
+	RunAfter  string
+	LastError sql.NullString
+	Now       string
+	ID        string
+}
+
+// scope: global (the worker pool serves every household and addresses a running job by id)
+// The handler asked to wait: back to queued, the attempt not counted.
+func (q *Queries) DeferJob(ctx context.Context, arg DeferJobParams) (Job, error) {
+	row := q.db.QueryRowContext(ctx, deferJob,
+		arg.RunAfter,
+		arg.LastError,
+		arg.Now,
+		arg.ID,
+	)
+	var i Job
+	err := row.Scan(
+		&i.ID,
+		&i.HouseholdID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Kind,
+		&i.Payload,
+		&i.State,
+		&i.Attempts,
+		&i.Deferrals,
 		&i.RunAfter,
 		&i.LastError,
 		&i.Result,
@@ -128,7 +179,7 @@ const delayJob = `-- name: DelayJob :one
 UPDATE jobs
 SET state = 'queued', run_after = ?1, last_error = ?2, updated_at = ?3
 WHERE id = ?4 AND state = 'running'
-RETURNING id, household_id, created_at, updated_at, kind, payload, state, attempts, run_after, last_error, result, created_by, item_id, place_id, started_at, finished_at
+RETURNING id, household_id, created_at, updated_at, kind, payload, state, attempts, deferrals, run_after, last_error, result, created_by, item_id, place_id, started_at, finished_at
 `
 
 type DelayJobParams struct {
@@ -156,6 +207,7 @@ func (q *Queries) DelayJob(ctx context.Context, arg DelayJobParams) (Job, error)
 		&i.Payload,
 		&i.State,
 		&i.Attempts,
+		&i.Deferrals,
 		&i.RunAfter,
 		&i.LastError,
 		&i.Result,
@@ -186,7 +238,7 @@ const failJob = `-- name: FailJob :one
 UPDATE jobs
 SET state = 'failed', last_error = ?1, finished_at = ?2, updated_at = ?2
 WHERE id = ?3 AND state = 'running'
-RETURNING id, household_id, created_at, updated_at, kind, payload, state, attempts, run_after, last_error, result, created_by, item_id, place_id, started_at, finished_at
+RETURNING id, household_id, created_at, updated_at, kind, payload, state, attempts, deferrals, run_after, last_error, result, created_by, item_id, place_id, started_at, finished_at
 `
 
 type FailJobParams struct {
@@ -208,6 +260,7 @@ func (q *Queries) FailJob(ctx context.Context, arg FailJobParams) (Job, error) {
 		&i.Payload,
 		&i.State,
 		&i.Attempts,
+		&i.Deferrals,
 		&i.RunAfter,
 		&i.LastError,
 		&i.Result,
@@ -221,7 +274,7 @@ func (q *Queries) FailJob(ctx context.Context, arg FailJobParams) (Job, error) {
 }
 
 const getJob = `-- name: GetJob :one
-SELECT id, household_id, created_at, updated_at, kind, payload, state, attempts, run_after, last_error, result, created_by, item_id, place_id, started_at, finished_at FROM jobs WHERE household_id = ? AND id = ?
+SELECT id, household_id, created_at, updated_at, kind, payload, state, attempts, deferrals, run_after, last_error, result, created_by, item_id, place_id, started_at, finished_at FROM jobs WHERE household_id = ? AND id = ?
 `
 
 type GetJobParams struct {
@@ -241,6 +294,7 @@ func (q *Queries) GetJob(ctx context.Context, arg GetJobParams) (Job, error) {
 		&i.Payload,
 		&i.State,
 		&i.Attempts,
+		&i.Deferrals,
 		&i.RunAfter,
 		&i.LastError,
 		&i.Result,
@@ -256,7 +310,7 @@ func (q *Queries) GetJob(ctx context.Context, arg GetJobParams) (Job, error) {
 const insertJob = `-- name: InsertJob :one
 INSERT INTO jobs (id, household_id, created_at, updated_at, kind, payload, run_after, created_by, item_id, place_id)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-RETURNING id, household_id, created_at, updated_at, kind, payload, state, attempts, run_after, last_error, result, created_by, item_id, place_id, started_at, finished_at
+RETURNING id, household_id, created_at, updated_at, kind, payload, state, attempts, deferrals, run_after, last_error, result, created_by, item_id, place_id, started_at, finished_at
 `
 
 type InsertJobParams struct {
@@ -295,6 +349,7 @@ func (q *Queries) InsertJob(ctx context.Context, arg InsertJobParams) (Job, erro
 		&i.Payload,
 		&i.State,
 		&i.Attempts,
+		&i.Deferrals,
 		&i.RunAfter,
 		&i.LastError,
 		&i.Result,
@@ -311,7 +366,7 @@ const releaseJob = `-- name: ReleaseJob :one
 UPDATE jobs
 SET state = 'queued', attempts = MAX(attempts - 1, 0), updated_at = ?1
 WHERE id = ?2 AND state = 'running'
-RETURNING id, household_id, created_at, updated_at, kind, payload, state, attempts, run_after, last_error, result, created_by, item_id, place_id, started_at, finished_at
+RETURNING id, household_id, created_at, updated_at, kind, payload, state, attempts, deferrals, run_after, last_error, result, created_by, item_id, place_id, started_at, finished_at
 `
 
 type ReleaseJobParams struct {
@@ -333,6 +388,7 @@ func (q *Queries) ReleaseJob(ctx context.Context, arg ReleaseJobParams) (Job, er
 		&i.Payload,
 		&i.State,
 		&i.Attempts,
+		&i.Deferrals,
 		&i.RunAfter,
 		&i.LastError,
 		&i.Result,
@@ -349,7 +405,7 @@ const requeueRunningJobs = `-- name: RequeueRunningJobs :many
 UPDATE jobs
 SET state = 'queued', updated_at = ?1
 WHERE state = 'running'
-RETURNING id, household_id, created_at, updated_at, kind, payload, state, attempts, run_after, last_error, result, created_by, item_id, place_id, started_at, finished_at
+RETURNING id, household_id, created_at, updated_at, kind, payload, state, attempts, deferrals, run_after, last_error, result, created_by, item_id, place_id, started_at, finished_at
 `
 
 // scope: global (the worker pool serves every household and addresses jobs by id)
@@ -372,6 +428,7 @@ func (q *Queries) RequeueRunningJobs(ctx context.Context, now string) ([]Job, er
 			&i.Payload,
 			&i.State,
 			&i.Attempts,
+			&i.Deferrals,
 			&i.RunAfter,
 			&i.LastError,
 			&i.Result,
@@ -396,10 +453,10 @@ func (q *Queries) RequeueRunningJobs(ctx context.Context, now string) ([]Job, er
 
 const retryJob = `-- name: RetryJob :one
 UPDATE jobs
-SET state = 'queued', attempts = 0, run_after = ?1, last_error = NULL, result = NULL,
+SET state = 'queued', attempts = 0, deferrals = 0, run_after = ?1, last_error = NULL, result = NULL,
     finished_at = NULL, updated_at = ?1
 WHERE household_id = ?2 AND id = ?3 AND state = 'failed'
-RETURNING id, household_id, created_at, updated_at, kind, payload, state, attempts, run_after, last_error, result, created_by, item_id, place_id, started_at, finished_at
+RETURNING id, household_id, created_at, updated_at, kind, payload, state, attempts, deferrals, run_after, last_error, result, created_by, item_id, place_id, started_at, finished_at
 `
 
 type RetryJobParams struct {
@@ -420,6 +477,7 @@ func (q *Queries) RetryJob(ctx context.Context, arg RetryJobParams) (Job, error)
 		&i.Payload,
 		&i.State,
 		&i.Attempts,
+		&i.Deferrals,
 		&i.RunAfter,
 		&i.LastError,
 		&i.Result,
