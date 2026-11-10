@@ -23,3 +23,10 @@ xcuserdata/
 *.apk
 *.aab
 .DS_Store
+
+# Project
+bin/
+data/
+!web/dist/
+web/dist/*
+!web/dist/.gitkeep
