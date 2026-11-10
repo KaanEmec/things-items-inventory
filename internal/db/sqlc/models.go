@@ -36,6 +36,25 @@ type Invite struct {
 	RevokedAt   sql.NullString
 }
 
+type Job struct {
+	ID          string
+	HouseholdID string
+	CreatedAt   string
+	UpdatedAt   string
+	Kind        string
+	Payload     string
+	State       string
+	Attempts    int64
+	RunAfter    string
+	LastError   sql.NullString
+	Result      sql.NullString
+	CreatedBy   sql.NullString
+	ItemID      sql.NullString
+	PlaceID     sql.NullString
+	StartedAt   sql.NullString
+	FinishedAt  sql.NullString
+}
+
 type Membership struct {
 	HouseholdID  string
 	UserID       string
