@@ -59,7 +59,7 @@ type thing struct {
 	Name string `json:"name"`
 }
 
-func sampleRoutes(mux *http.ServeMux) {
+func sampleRoutes(mux *httpapi.Mux) {
 	mux.HandleFunc("POST /api/v1/sample", func(w http.ResponseWriter, r *http.Request) {
 		var in thing
 		if err := httpapi.DecodeJSON(w, r, &in); err != nil {

@@ -19,3 +19,12 @@ func TestLoadFromEnv(t *testing.T) {
 		t.Fatalf("unexpected config: %+v", got)
 	}
 }
+
+func TestLoadPublicURLAndProxy(t *testing.T) {
+	t.Setenv("INVENTORY_PUBLIC_URL", "https://stuff.example.com/")
+	t.Setenv("INVENTORY_TRUST_PROXY", "1")
+	got := Load()
+	if got.PublicURL != "https://stuff.example.com" || !got.TrustProxy {
+		t.Fatalf("unexpected config: %+v", got)
+	}
+}

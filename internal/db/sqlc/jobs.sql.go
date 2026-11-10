@@ -99,6 +99,7 @@ type CompleteJobParams struct {
 	ID     string
 }
 
+// scope: global (the worker pool serves every household and addresses jobs by id)
 func (q *Queries) CompleteJob(ctx context.Context, arg CompleteJobParams) (Job, error) {
 	row := q.db.QueryRowContext(ctx, completeJob, arg.Result, arg.Now, arg.ID)
 	var i Job
@@ -137,6 +138,7 @@ type DelayJobParams struct {
 	ID        string
 }
 
+// scope: global (the worker pool serves every household and addresses jobs by id)
 func (q *Queries) DelayJob(ctx context.Context, arg DelayJobParams) (Job, error) {
 	row := q.db.QueryRowContext(ctx, delayJob,
 		arg.RunAfter,
@@ -171,6 +173,7 @@ DELETE FROM jobs
 WHERE state IN ('done', 'failed', 'cancelled') AND finished_at < ?
 `
 
+// scope: global (the worker pool serves every household and addresses jobs by id)
 func (q *Queries) DeleteFinishedJobsBefore(ctx context.Context, finishedAt sql.NullString) (int64, error) {
 	result, err := q.db.ExecContext(ctx, deleteFinishedJobsBefore, finishedAt)
 	if err != nil {
@@ -192,6 +195,7 @@ type FailJobParams struct {
 	ID        string
 }
 
+// scope: global (the worker pool serves every household and addresses jobs by id)
 func (q *Queries) FailJob(ctx context.Context, arg FailJobParams) (Job, error) {
 	row := q.db.QueryRowContext(ctx, failJob, arg.LastError, arg.Now, arg.ID)
 	var i Job
@@ -315,6 +319,7 @@ type ReleaseJobParams struct {
 	ID  string
 }
 
+// scope: global (the worker pool serves every household and addresses jobs by id)
 // Puts a running job back without counting the attempt (shutdown).
 func (q *Queries) ReleaseJob(ctx context.Context, arg ReleaseJobParams) (Job, error) {
 	row := q.db.QueryRowContext(ctx, releaseJob, arg.Now, arg.ID)
@@ -347,6 +352,7 @@ WHERE state = 'running'
 RETURNING id, household_id, created_at, updated_at, kind, payload, state, attempts, run_after, last_error, result, created_by, item_id, place_id, started_at, finished_at
 `
 
+// scope: global (the worker pool serves every household and addresses jobs by id)
 // Start-up recovery: jobs a dead process left running.
 func (q *Queries) RequeueRunningJobs(ctx context.Context, now string) ([]Job, error) {
 	rows, err := q.db.QueryContext(ctx, requeueRunningJobs, now)

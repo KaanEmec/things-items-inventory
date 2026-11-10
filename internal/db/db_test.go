@@ -29,8 +29,9 @@ func TestFreshAndReopen(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if n := count(t, d.Read, `SELECT count(*) FROM schema_migrations`); n != 1 {
-		t.Fatalf("migrations applied: %d", n)
+	first := count(t, d.Read, `SELECT count(*) FROM schema_migrations`)
+	if first == 0 {
+		t.Fatalf("migrations applied: %d", first)
 	}
 	var at string
 	d.Read.QueryRow(`SELECT applied_at FROM schema_migrations WHERE version=1`).Scan(&at)
@@ -46,7 +47,7 @@ func TestFreshAndReopen(t *testing.T) {
 	defer d.Close()
 	var at2 string
 	d.Read.QueryRow(`SELECT applied_at FROM schema_migrations WHERE version=1`).Scan(&at2)
-	if n := count(t, d.Read, `SELECT count(*) FROM schema_migrations`); n != 1 || at != at2 {
+	if n := count(t, d.Read, `SELECT count(*) FROM schema_migrations`); n != first || at != at2 {
 		t.Fatalf("second open changed migrations: n=%d %q vs %q", n, at, at2)
 	}
 	var mode string

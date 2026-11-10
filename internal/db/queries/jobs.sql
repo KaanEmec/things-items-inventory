@@ -21,24 +21,28 @@ WHERE id = (
 RETURNING *;
 
 -- name: CompleteJob :one
+-- scope: global (the worker pool serves every household and addresses jobs by id)
 UPDATE jobs
 SET state = 'done', result = sqlc.narg(result), last_error = NULL, finished_at = sqlc.arg(now), updated_at = sqlc.arg(now)
 WHERE id = sqlc.arg(id) AND state = 'running'
 RETURNING *;
 
 -- name: FailJob :one
+-- scope: global (the worker pool serves every household and addresses jobs by id)
 UPDATE jobs
 SET state = 'failed', last_error = sqlc.arg(last_error), finished_at = sqlc.arg(now), updated_at = sqlc.arg(now)
 WHERE id = sqlc.arg(id) AND state = 'running'
 RETURNING *;
 
 -- name: DelayJob :one
+-- scope: global (the worker pool serves every household and addresses jobs by id)
 UPDATE jobs
 SET state = 'queued', run_after = sqlc.arg(run_after), last_error = sqlc.arg(last_error), updated_at = sqlc.arg(now)
 WHERE id = sqlc.arg(id) AND state = 'running'
 RETURNING *;
 
 -- name: ReleaseJob :one
+-- scope: global (the worker pool serves every household and addresses jobs by id)
 -- Puts a running job back without counting the attempt (shutdown).
 UPDATE jobs
 SET state = 'queued', attempts = MAX(attempts - 1, 0), updated_at = sqlc.arg(now)
@@ -46,6 +50,7 @@ WHERE id = sqlc.arg(id) AND state = 'running'
 RETURNING *;
 
 -- name: RequeueRunningJobs :many
+-- scope: global (the worker pool serves every household and addresses jobs by id)
 -- Start-up recovery: jobs a dead process left running.
 UPDATE jobs
 SET state = 'queued', updated_at = sqlc.arg(now)
@@ -66,5 +71,6 @@ WHERE household_id = sqlc.arg(household_id) AND id = sqlc.arg(id) AND state = 'f
 RETURNING *;
 
 -- name: DeleteFinishedJobsBefore :execrows
+-- scope: global (the worker pool serves every household and addresses jobs by id)
 DELETE FROM jobs
 WHERE state IN ('done', 'failed', 'cancelled') AND finished_at < ?;

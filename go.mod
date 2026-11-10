@@ -2,7 +2,10 @@ module github.com/kaanemec/things-items-inventory
 
 go 1.27
 
-require modernc.org/sqlite v1.62.0
+require (
+	golang.org/x/crypto v0.58.0
+	modernc.org/sqlite v1.62.0
+)
 
 require (
 	github.com/dustin/go-humanize v1.1.0 // indirect
