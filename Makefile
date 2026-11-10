@@ -24,7 +24,7 @@ lint:
 	npm --prefix web run check
 
 generate:
-	@:
+	sqlc generate
 
 generate-check: generate
 	git diff --exit-code
