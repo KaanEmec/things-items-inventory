@@ -481,3 +481,51 @@ func TestCleanupAndOnChange(t *testing.T) {
 		t.Fatalf("OnChange states %s", got)
 	}
 }
+
+func TestRootContextCancelRequeues(t *testing.T) {
+	d := dbtest.New(t)
+	hid := household(t, d)
+	q := New(d, fastOpts())
+	started := make(chan struct{})
+	q.Register("k", Handler{MaxAttempts: 1, Run: func(ctx context.Context, j Job) (json.RawMessage, error) {
+		close(started)
+		<-ctx.Done()
+		return nil, errors.New("interrupted")
+	}})
+	jid, _ := q.Enqueue(context.Background(), nil, Job{HouseholdID: hid, Kind: "k"})
+	root, cancel := context.WithCancel(context.Background())
+	if err := q.Start(root); err != nil {
+		t.Fatal(err)
+	}
+	<-started
+	cancel()
+	waitState(t, q, hid, jid, StateQueued)
+	if err := q.Stop(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	j, _ := q.Get(context.Background(), hid, jid)
+	if j.State != StateQueued || j.Attempts != 0 {
+		t.Fatalf("state=%s attempts=%d", j.State, j.Attempts)
+	}
+}
+
+func TestCrashLoopGivesUp(t *testing.T) {
+	d := dbtest.New(t)
+	hid := household(t, d)
+	q := New(d, fastOpts())
+	var runs atomic.Int32
+	q.Register("k", Handler{MaxAttempts: 2, Run: func(ctx context.Context, j Job) (json.RawMessage, error) {
+		runs.Add(1)
+		return nil, nil
+	}})
+	jid, _ := q.Enqueue(context.Background(), nil, Job{HouseholdID: hid, Kind: "k"})
+	// Two earlier runs killed the process while the job was running.
+	if _, err := d.Write.Exec(`UPDATE jobs SET state = 'running', attempts = 2 WHERE id = ?`, jid); err != nil {
+		t.Fatal(err)
+	}
+	start(t, q)
+	j := waitState(t, q, hid, jid, StateFailed)
+	if runs.Load() != 0 || !strings.Contains(j.LastError, "gave up after 2 attempts; the last run did not finish") {
+		t.Fatalf("runs=%d last_error=%q", runs.Load(), j.LastError)
+	}
+}

@@ -405,6 +405,8 @@ func (q *Queue) worker() {
 		select {
 		case <-q.stopping:
 			return
+		case <-q.rootCtx.Done():
+			return
 		default:
 		}
 		job, ok := q.claim()
@@ -422,6 +424,8 @@ func (q *Queue) worker() {
 		poll.Reset(q.opts.PollInterval)
 		select {
 		case <-q.stopping:
+			return
+		case <-q.rootCtx.Done():
 			return
 		case <-q.nudge:
 		case <-poll.C:
@@ -460,6 +464,13 @@ func (q *Queue) run(job Job) {
 		return
 	}
 
+	if job.Attempts > h.MaxAttempts {
+		// Earlier runs never reported back (the process died): stop a job
+		// that keeps crashing the process.
+		q.finishFail(ctx, job, "crashed", fmt.Sprintf("gave up after %d attempts; the last run did not finish", h.MaxAttempts))
+		return
+	}
+
 	jobCtx, cancelJob := context.WithCancelCause(q.rootCtx)
 	defer cancelJob(nil)
 	q.runMu.Lock()
@@ -491,7 +502,8 @@ func (q *Queue) run(job Job) {
 		q.report(row, err)
 	case errors.Is(cause, errCancelledJob):
 		// Cancel already wrote the state.
-	case errors.Is(cause, errShutdown):
+	case errors.Is(cause, errShutdown) || q.rootCtx.Err() != nil:
+		// Shutting down (Stop, or the context given to Start ended).
 		q.release(ctx, job.ID)
 	default:
 		code := "error"
