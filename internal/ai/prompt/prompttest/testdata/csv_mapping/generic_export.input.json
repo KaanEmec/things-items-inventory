@@ -1,0 +1,55 @@
+{
+  "grounding": {
+    "language": "en",
+    "currency": "EUR",
+    "brands": [
+      "Sony",
+      "Apple",
+      "Anker",
+      "IKEA"
+    ],
+    "names": [
+      "Sony WH-1000XM4 headphones",
+      "Anker USB-C charger"
+    ],
+    "places": []
+  },
+  "header": [
+    "#",
+    "Item",
+    "Brand",
+    "Model",
+    "Qty",
+    "Location",
+    "Purchase Date",
+    "Price",
+    "Notes",
+    "Photo URL"
+  ],
+  "rows": [
+    [
+      "1",
+      "Headphones",
+      "Sony",
+      "WH-1000XM4",
+      "1",
+      "Living room",
+      "2024-03-14",
+      "279.00",
+      "gift",
+      "https://x/1.jpg"
+    ],
+    [
+      "2",
+      "Drill",
+      "Bosch",
+      "GSR 12V",
+      "1",
+      "Garage",
+      "2021-06-01",
+      "89.90",
+      "",
+      "https://x/2.jpg"
+    ]
+  ]
+}

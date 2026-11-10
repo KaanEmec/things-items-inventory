@@ -1,0 +1,33 @@
+{
+  "lines": [
+    {
+      "text": "SONY WH-1000XM4 B",
+      "name": "Sony WH-1000XM4 headphones",
+      "quantity": 1,
+      "price": 279.0
+    },
+    {
+      "text": "HAMA USB-C KABEL 1M",
+      "name": "Hama USB-C cable 1 m",
+      "quantity": 2,
+      "price": 9.99
+    }
+  ],
+  "item_line": {
+    "index": 0,
+    "confidence": "sure"
+  },
+  "date": {
+    "value": "2024-03-14",
+    "confidence": "sure"
+  },
+  "seller": {
+    "value": "MediaMarkt",
+    "confidence": "sure"
+  },
+  "currency": {
+    "value": "EUR",
+    "confidence": "sure"
+  },
+  "warranty_months": null
+}

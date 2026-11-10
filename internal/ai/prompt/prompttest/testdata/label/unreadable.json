@@ -1,0 +1,17 @@
+{
+  "read_text": [],
+  "category": null,
+  "brand": null,
+  "model": null,
+  "serial": null,
+  "made": null,
+  "attributes": [],
+  "needs": [
+    {
+      "kind": "label_photo",
+      "field": "model",
+      "question": "The label is blurred. Can you take a sharper photo, closer?",
+      "options": []
+    }
+  ]
+}

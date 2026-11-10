@@ -1,0 +1,32 @@
+{
+  "rows": [
+    {
+      "id": "1",
+      "category": {
+        "value": "gadget",
+        "confidence": "sure"
+      },
+      "brand": {
+        "value": "Apple",
+        "confidence": "likely"
+      },
+      "model": {
+        "value": "iPhone 13",
+        "confidence": "likely"
+      },
+      "name": {
+        "value": "Apple iPhone 13",
+        "confidence": "sure"
+      },
+      "color": null,
+      "quantity": null,
+      "attributes": [
+        {
+          "key": "storage_gb",
+          "value": "1 TB",
+          "confidence": "sure"
+        }
+      ]
+    }
+  ]
+}

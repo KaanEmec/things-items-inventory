@@ -1,0 +1,58 @@
+{
+  "read_text": [
+    "SONY",
+    "WH-1000XM4",
+    "Wireless Noise Cancelling Stereo Headset",
+    "Model: YY2948",
+    "S/N 5012345",
+    "Made in Malaysia"
+  ],
+  "category": {
+    "value": "gadget",
+    "confidence": "sure"
+  },
+  "brand": {
+    "value": "Sony",
+    "confidence": "sure"
+  },
+  "model": {
+    "value": "WH-1000XM4",
+    "confidence": "sure"
+  },
+  "serial": {
+    "value": "5012345",
+    "confidence": "sure"
+  },
+  "name": {
+    "value": "Sony WH-1000XM4 headphones",
+    "confidence": "sure"
+  },
+  "color": {
+    "value": "Black",
+    "confidence": "sure"
+  },
+  "condition": null,
+  "quantity": null,
+  "attributes": [
+    {
+      "key": "type",
+      "value": "headphones",
+      "confidence": "sure"
+    },
+    {
+      "key": "connectivity",
+      "value": "bluetooth, usb_c",
+      "confidence": "likely"
+    }
+  ],
+  "purchase": null,
+  "note": "Comes with the carrying case.",
+  "needs": [
+    {
+      "kind": "receipt_photo",
+      "field": null,
+      "question": "Do you have the receipt? It would start the warranty.",
+      "options": []
+    }
+  ]
+}

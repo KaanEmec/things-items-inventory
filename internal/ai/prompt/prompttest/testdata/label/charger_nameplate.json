@@ -1,0 +1,45 @@
+{
+  "read_text": [
+    "61W USB-C Power Adapter",
+    "Model A1947",
+    "Designed by Apple in California",
+    "Input: 100-240V ~ 1.5A 50-60Hz",
+    "Output: 20.3V ⎓ 3A",
+    "S/N C4H8329F0MXN"
+  ],
+  "category": {
+    "value": "gadget",
+    "confidence": "sure"
+  },
+  "brand": {
+    "value": "Apple",
+    "confidence": "sure"
+  },
+  "model": {
+    "value": "A1947",
+    "confidence": "sure"
+  },
+  "serial": {
+    "value": "C4H8329F0MXN",
+    "confidence": "sure"
+  },
+  "made": null,
+  "attributes": [
+    {
+      "key": "type",
+      "value": "charger",
+      "confidence": "sure"
+    },
+    {
+      "key": "power",
+      "value": "61 W",
+      "confidence": "sure"
+    },
+    {
+      "key": "connectivity",
+      "value": "usb_c",
+      "confidence": "sure"
+    }
+  ],
+  "needs": []
+}

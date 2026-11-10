@@ -1,0 +1,50 @@
+{
+  "read_text": [],
+  "category": {
+    "value": "gadget",
+    "confidence": "sure"
+  },
+  "brand": {
+    "value": "Apple",
+    "confidence": "likely"
+  },
+  "model": null,
+  "serial": null,
+  "name": {
+    "value": "Apple iPhone",
+    "confidence": "likely"
+  },
+  "color": {
+    "value": "Blue",
+    "confidence": "sure"
+  },
+  "condition": null,
+  "quantity": null,
+  "attributes": [
+    {
+      "key": "type",
+      "value": "phone",
+      "confidence": "sure"
+    }
+  ],
+  "purchase": null,
+  "note": null,
+  "needs": [
+    {
+      "kind": "label_photo",
+      "field": "model",
+      "question": "Could be an iPhone 13 or 14. Add a photo of Settings > About or the box label.",
+      "options": []
+    },
+    {
+      "kind": "choose",
+      "field": "attributes.storage_gb",
+      "question": "Which storage size?",
+      "options": [
+        "128",
+        "256",
+        "512"
+      ]
+    }
+  ]
+}

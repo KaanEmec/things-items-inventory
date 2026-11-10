@@ -1,0 +1,22 @@
+{
+  "rows": [
+    {
+      "source": "hdmi cable in box 12",
+      "category": {
+        "value": "part",
+        "confidence": "sure"
+      },
+      "brand": null,
+      "model": null,
+      "name": {
+        "value": "HDMI cable",
+        "confidence": "sure"
+      },
+      "color": null,
+      "quantity": null,
+      "attributes": [],
+      "place_id": "Box 12",
+      "purchase": null
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "grounding": {
+    "language": "en",
+    "currency": "EUR",
+    "brands": [
+      "Sony",
+      "Apple",
+      "Anker",
+      "IKEA"
+    ],
+    "names": [
+      "Sony WH-1000XM4 headphones",
+      "Anker USB-C charger"
+    ],
+    "places": []
+  },
+  "photos": [
+    "label",
+    "item"
+  ]
+}

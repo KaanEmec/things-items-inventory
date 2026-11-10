@@ -1,0 +1,20 @@
+{
+  "grounding": {
+    "language": "tr",
+    "currency": "TRY",
+    "brands": [
+      "Mavi",
+      "Apple",
+      "Arçelik"
+    ],
+    "names": [
+      "Siyah kışlık mont",
+      "Apple iPhone 13"
+    ],
+    "places": []
+  },
+  "photos": [
+    "item",
+    "label"
+  ]
+}

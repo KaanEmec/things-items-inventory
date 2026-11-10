@@ -1,0 +1,59 @@
+{
+  "read_text": [
+    "MAVİ",
+    "M",
+    "%100 Polyester",
+    "Dolgu: %90 Kaz tüyü %10 Kuş tüyü",
+    "30°"
+  ],
+  "category": {
+    "value": "clothing",
+    "confidence": "sure"
+  },
+  "brand": {
+    "value": "Mavi",
+    "confidence": "sure"
+  },
+  "model": null,
+  "serial": null,
+  "name": {
+    "value": "Mavi siyah kışlık mont",
+    "confidence": "sure"
+  },
+  "color": {
+    "value": "Siyah",
+    "confidence": "sure"
+  },
+  "condition": null,
+  "quantity": null,
+  "attributes": [
+    {
+      "key": "type",
+      "value": "coat",
+      "confidence": "sure"
+    },
+    {
+      "key": "size",
+      "value": "M",
+      "confidence": "sure"
+    },
+    {
+      "key": "material",
+      "value": "%100 Polyester; dolgu %90 kaz tüyü, %10 kuş tüyü",
+      "confidence": "sure"
+    },
+    {
+      "key": "season",
+      "value": "winter",
+      "confidence": "likely"
+    },
+    {
+      "key": "care",
+      "value": "30 °C'de yıkama",
+      "confidence": "sure"
+    }
+  ],
+  "purchase": null,
+  "note": null,
+  "needs": []
+}

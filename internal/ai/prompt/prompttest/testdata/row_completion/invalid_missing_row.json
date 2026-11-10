@@ -1,0 +1,23 @@
+{
+  "rows": [
+    {
+      "id": "1",
+      "category": {
+        "value": "gadget",
+        "confidence": "sure"
+      },
+      "brand": {
+        "value": "Amazon",
+        "confidence": "likely"
+      },
+      "model": null,
+      "name": {
+        "value": "Amazon Kindle",
+        "confidence": "sure"
+      },
+      "color": null,
+      "quantity": null,
+      "attributes": []
+    }
+  ]
+}

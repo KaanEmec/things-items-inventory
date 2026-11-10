@@ -1,0 +1,42 @@
+{
+  "grounding": {
+    "language": "tr",
+    "currency": "TRY",
+    "brands": [
+      "Mavi",
+      "Apple",
+      "Arçelik"
+    ],
+    "names": [
+      "Siyah kışlık mont",
+      "Apple iPhone 13"
+    ],
+    "places": []
+  },
+  "header": [
+    "Ürün adı",
+    "Beden",
+    "Kumaş",
+    "Renk",
+    "Nerede",
+    "Fiyat"
+  ],
+  "rows": [
+    [
+      "Kışlık mont",
+      "M",
+      "%100 polyester",
+      "Siyah",
+      "Gardırop",
+      "1.299,90"
+    ],
+    [
+      "Kot pantolon",
+      "32/34",
+      "%98 pamuk",
+      "Mavi",
+      "Çekmece 2",
+      "649,00"
+    ]
+  ]
+}

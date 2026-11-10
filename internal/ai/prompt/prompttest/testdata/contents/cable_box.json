@@ -1,0 +1,28 @@
+{
+  "lines": [
+    {
+      "name": "HDMI cable",
+      "quantity": 3,
+      "category": "part",
+      "worth_own_entry": false
+    },
+    {
+      "name": "USB-C cables",
+      "quantity": null,
+      "category": "part",
+      "worth_own_entry": false
+    },
+    {
+      "name": "Raspberry Pi 4",
+      "quantity": 1,
+      "category": "gadget",
+      "worth_own_entry": true
+    },
+    {
+      "name": "AA batteries",
+      "quantity": 8,
+      "category": "part",
+      "worth_own_entry": false
+    }
+  ]
+}

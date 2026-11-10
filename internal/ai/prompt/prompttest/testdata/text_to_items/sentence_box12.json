@@ -1,0 +1,90 @@
+{
+  "rows": [
+    {
+      "source": "three hdmi cables",
+      "category": {
+        "value": "part",
+        "confidence": "sure"
+      },
+      "brand": null,
+      "model": null,
+      "name": {
+        "value": "HDMI cable",
+        "confidence": "sure"
+      },
+      "color": null,
+      "quantity": {
+        "value": 3,
+        "confidence": "sure"
+      },
+      "attributes": [
+        {
+          "key": "type",
+          "value": "cable",
+          "confidence": "sure"
+        }
+      ],
+      "place_id": "p1",
+      "purchase": null
+    },
+    {
+      "source": "the old kindle",
+      "category": {
+        "value": "gadget",
+        "confidence": "sure"
+      },
+      "brand": {
+        "value": "Amazon",
+        "confidence": "likely"
+      },
+      "model": null,
+      "name": {
+        "value": "Amazon Kindle",
+        "confidence": "sure"
+      },
+      "color": null,
+      "quantity": null,
+      "attributes": [
+        {
+          "key": "type",
+          "value": "tablet",
+          "confidence": "likely"
+        }
+      ],
+      "place_id": "p1",
+      "purchase": null
+    },
+    {
+      "source": "two pairs of ski gloves",
+      "category": {
+        "value": "accessory",
+        "confidence": "sure"
+      },
+      "brand": null,
+      "model": null,
+      "name": {
+        "value": "Ski gloves",
+        "confidence": "sure"
+      },
+      "color": null,
+      "quantity": {
+        "value": 2,
+        "confidence": "sure"
+      },
+      "attributes": [
+        {
+          "key": "type",
+          "value": "gloves",
+          "confidence": "sure"
+        },
+        {
+          "key": "season",
+          "value": "winter",
+          "confidence": "likely"
+        }
+      ],
+      "place_id": "p1",
+      "purchase": null
+    }
+  ]
+}

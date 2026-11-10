@@ -1,0 +1,27 @@
+{
+  "lines": [
+    {
+      "text": "KINDLE PAPERWHITE",
+      "name": "Kindle Paperwhite",
+      "quantity": 1,
+      "price": 149.99
+    }
+  ],
+  "item_line": {
+    "index": 1,
+    "confidence": "sure"
+  },
+  "date": {
+    "value": "2023-11-24",
+    "confidence": "sure"
+  },
+  "seller": {
+    "value": "Amazon",
+    "confidence": "sure"
+  },
+  "currency": {
+    "value": "EUR",
+    "confidence": "sure"
+  },
+  "warranty_months": null
+}

@@ -1,0 +1,22 @@
+{
+  "lines": [
+    {
+      "name": "Yün atkı",
+      "quantity": 2,
+      "category": "accessory",
+      "worth_own_entry": false
+    },
+    {
+      "name": "Kışlık eldiven",
+      "quantity": 3,
+      "category": "accessory",
+      "worth_own_entry": false
+    },
+    {
+      "name": "Ray-Ban güneş gözlüğü",
+      "quantity": 1,
+      "category": "accessory",
+      "worth_own_entry": true
+    }
+  ]
+}

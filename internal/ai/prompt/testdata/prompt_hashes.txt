@@ -1,0 +1,7 @@
+item_draft.1 b55aa943015a069e
+label.1 9b9896e4ae5ac2c5
+receipt.1 b9f127adc596e6a3
+contents.1 aff14a1ab60b6e9c
+row_completion.1 10a32c7a87edff6f
+text_to_items.1 35926286b457dfb6
+csv_mapping.1 fcdd742a79455d99

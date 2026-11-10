@@ -1,0 +1,75 @@
+{
+  "rows": [
+    {
+      "id": "a",
+      "category": {
+        "value": "gadget",
+        "confidence": "sure"
+      },
+      "brand": {
+        "value": "Apple",
+        "confidence": "likely"
+      },
+      "model": {
+        "value": "iPhone 13",
+        "confidence": "likely"
+      },
+      "name": {
+        "value": "Apple iPhone 13 128 GB",
+        "confidence": "sure"
+      },
+      "color": {
+        "value": "Mavi",
+        "confidence": "sure"
+      },
+      "quantity": null,
+      "attributes": [
+        {
+          "key": "type",
+          "value": "phone",
+          "confidence": "sure"
+        },
+        {
+          "key": "storage_gb",
+          "value": "128",
+          "confidence": "sure"
+        }
+      ]
+    },
+    {
+      "id": "b",
+      "category": {
+        "value": "clothing",
+        "confidence": "sure"
+      },
+      "brand": null,
+      "model": null,
+      "name": {
+        "value": "Siyah kışlık mont",
+        "confidence": "sure"
+      },
+      "color": {
+        "value": "Siyah",
+        "confidence": "sure"
+      },
+      "quantity": null,
+      "attributes": [
+        {
+          "key": "type",
+          "value": "coat",
+          "confidence": "sure"
+        },
+        {
+          "key": "size",
+          "value": "M",
+          "confidence": "sure"
+        },
+        {
+          "key": "season",
+          "value": "winter",
+          "confidence": "likely"
+        }
+      ]
+    }
+  ]
+}

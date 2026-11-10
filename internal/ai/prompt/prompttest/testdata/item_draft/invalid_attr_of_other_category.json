@@ -1,0 +1,30 @@
+{
+  "read_text": [],
+  "category": {
+    "value": "clothing",
+    "confidence": "sure"
+  },
+  "brand": null,
+  "model": null,
+  "serial": null,
+  "name": {
+    "value": "Black coat",
+    "confidence": "sure"
+  },
+  "color": {
+    "value": "Black",
+    "confidence": "sure"
+  },
+  "condition": null,
+  "quantity": null,
+  "attributes": [
+    {
+      "key": "storage_gb",
+      "value": "128",
+      "confidence": "sure"
+    }
+  ],
+  "purchase": null,
+  "note": null,
+  "needs": []
+}

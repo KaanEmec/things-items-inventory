@@ -1,0 +1,19 @@
+{
+  "columns": [
+    {
+      "column": 0,
+      "target": "name",
+      "attribute": null,
+      "confidence": "sure"
+    },
+    {
+      "column": 1,
+      "target": "name",
+      "attribute": null,
+      "confidence": "likely"
+    }
+  ],
+  "category": null,
+  "date_format": null,
+  "decimal_comma": false
+}

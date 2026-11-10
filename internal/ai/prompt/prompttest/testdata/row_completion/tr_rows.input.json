@@ -1,0 +1,28 @@
+{
+  "grounding": {
+    "language": "tr",
+    "currency": "TRY",
+    "brands": [
+      "Mavi",
+      "Apple",
+      "Arçelik"
+    ],
+    "names": [
+      "Siyah kışlık mont",
+      "Apple iPhone 13"
+    ],
+    "places": []
+  },
+  "rows": [
+    {
+      "id": "a",
+      "text": "iphone 13 128 mavi",
+      "category": ""
+    },
+    {
+      "id": "b",
+      "text": "kışlık mont siyah M",
+      "category": ""
+    }
+  ]
+}

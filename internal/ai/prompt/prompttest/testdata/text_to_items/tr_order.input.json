@@ -1,0 +1,22 @@
+{
+  "grounding": {
+    "language": "tr",
+    "currency": "TRY",
+    "brands": [
+      "Mavi",
+      "Apple",
+      "Arçelik"
+    ],
+    "names": [
+      "Siyah kışlık mont",
+      "Apple iPhone 13"
+    ],
+    "places": [
+      {
+        "id": "01JBX00000000000000KUTU007",
+        "path": "Kutu 7"
+      }
+    ]
+  },
+  "text": "Siparişiniz kargoya verildi!\nSipariş no: 401-2219\nTarih: 12.10.2025\nSatıcı: Hepsiburada\n1 x Anker PowerCore 10000 powerbank - 899,90 TL\n2 x Philips LED ampul E27 9W - 74,50 TL\nKargo: 0,00 TL\nToplam: 1.048,90 TL"
+}

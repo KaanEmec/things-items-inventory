@@ -1,0 +1,21 @@
+{
+  "read_text": [
+    "Model A1947"
+  ],
+  "category": {
+    "value": "gadget",
+    "confidence": "sure"
+  },
+  "brand": {
+    "value": "Apple",
+    "confidence": "sure"
+  },
+  "model": {
+    "value": "A1947",
+    "confidence": "sure"
+  },
+  "serial": null,
+  "made": null,
+  "attributes": [],
+  "needs": []
+}

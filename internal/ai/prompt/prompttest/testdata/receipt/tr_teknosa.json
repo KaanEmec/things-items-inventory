@@ -1,0 +1,30 @@
+{
+  "lines": [
+    {
+      "text": "ARCELIK 9100 M CAMASIR MAK.",
+      "name": "Arçelik 9100 M çamaşır makinesi",
+      "quantity": 1,
+      "price": 18999.0
+    }
+  ],
+  "item_line": {
+    "index": 0,
+    "confidence": "sure"
+  },
+  "date": {
+    "value": "2025-04-03",
+    "confidence": "likely"
+  },
+  "seller": {
+    "value": "Teknosa",
+    "confidence": "sure"
+  },
+  "currency": {
+    "value": "TRY",
+    "confidence": "sure"
+  },
+  "warranty_months": {
+    "value": 24,
+    "confidence": "sure"
+  }
+}

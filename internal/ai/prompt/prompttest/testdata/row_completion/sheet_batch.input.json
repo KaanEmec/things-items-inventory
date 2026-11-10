@@ -1,0 +1,39 @@
+{
+  "grounding": {
+    "language": "en",
+    "currency": "EUR",
+    "brands": [
+      "Sony",
+      "Apple",
+      "Anker",
+      "IKEA"
+    ],
+    "names": [
+      "Sony WH-1000XM4 headphones",
+      "Anker USB-C charger"
+    ],
+    "places": []
+  },
+  "rows": [
+    {
+      "id": "1",
+      "text": "wh1000xm4 black",
+      "category": ""
+    },
+    {
+      "id": "2",
+      "text": "ikea lack side table",
+      "category": ""
+    },
+    {
+      "id": "3",
+      "text": "3x hdmi 2m",
+      "category": "part"
+    },
+    {
+      "id": "4",
+      "text": "asdf",
+      "category": ""
+    }
+  ]
+}

@@ -1,0 +1,108 @@
+{
+  "rows": [
+    {
+      "source": "1 x Anker PowerCore 10000 powerbank",
+      "category": {
+        "value": "gadget",
+        "confidence": "sure"
+      },
+      "brand": {
+        "value": "Anker",
+        "confidence": "sure"
+      },
+      "model": {
+        "value": "PowerCore 10000",
+        "confidence": "sure"
+      },
+      "name": {
+        "value": "Anker PowerCore 10000 powerbank",
+        "confidence": "sure"
+      },
+      "color": null,
+      "quantity": {
+        "value": 1,
+        "confidence": "sure"
+      },
+      "attributes": [
+        {
+          "key": "type",
+          "value": "charger",
+          "confidence": "likely"
+        }
+      ],
+      "place_id": null,
+      "purchase": {
+        "date": {
+          "value": "2025-10-12",
+          "confidence": "sure"
+        },
+        "price": {
+          "value": 899.9,
+          "confidence": "sure"
+        },
+        "currency": {
+          "value": "TRY",
+          "confidence": "sure"
+        },
+        "seller": {
+          "value": "Hepsiburada",
+          "confidence": "sure"
+        },
+        "warranty_months": null
+      }
+    },
+    {
+      "source": "2 x Philips LED ampul E27 9W",
+      "category": {
+        "value": "other",
+        "confidence": "sure"
+      },
+      "brand": {
+        "value": "Philips",
+        "confidence": "sure"
+      },
+      "model": null,
+      "name": {
+        "value": "Philips LED ampul E27 9W",
+        "confidence": "sure"
+      },
+      "color": null,
+      "quantity": {
+        "value": 2,
+        "confidence": "sure"
+      },
+      "attributes": [
+        {
+          "key": "type",
+          "value": "ampul",
+          "confidence": "sure"
+        },
+        {
+          "key": "power",
+          "value": "9W",
+          "confidence": "sure"
+        }
+      ],
+      "place_id": null,
+      "purchase": {
+        "date": {
+          "value": "2025-10-12",
+          "confidence": "sure"
+        },
+        "price": {
+          "value": 74.5,
+          "confidence": "sure"
+        },
+        "currency": {
+          "value": "TRY",
+          "confidence": "sure"
+        },
+        "seller": {
+          "value": "Hepsiburada",
+          "confidence": "sure"
+        },
+        "warranty_months": null
+      }
+    }
+  ]
+}

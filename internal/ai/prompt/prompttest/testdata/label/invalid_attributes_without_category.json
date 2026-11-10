@@ -1,0 +1,18 @@
+{
+  "read_text": [
+    "19V 3.42A"
+  ],
+  "category": null,
+  "brand": null,
+  "model": null,
+  "serial": null,
+  "made": null,
+  "attributes": [
+    {
+      "key": "power",
+      "value": "19 V 3.42 A",
+      "confidence": "sure"
+    }
+  ],
+  "needs": []
+}

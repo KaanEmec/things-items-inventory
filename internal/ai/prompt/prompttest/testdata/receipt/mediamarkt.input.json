@@ -1,0 +1,22 @@
+{
+  "grounding": {
+    "language": "en",
+    "currency": "EUR",
+    "brands": [
+      "Sony",
+      "Apple",
+      "Anker",
+      "IKEA"
+    ],
+    "names": [
+      "Sony WH-1000XM4 headphones",
+      "Anker USB-C charger"
+    ],
+    "places": []
+  },
+  "item": {
+    "name": "Sony WH-1000XM4 headphones",
+    "brand": "Sony",
+    "model": "WH-1000XM4"
+  }
+}

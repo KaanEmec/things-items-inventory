@@ -1,0 +1,61 @@
+{
+  "rows": [
+    {
+      "source": "hdmi cable x2",
+      "category": {
+        "value": "part",
+        "confidence": "sure"
+      },
+      "brand": null,
+      "model": null,
+      "name": {
+        "value": "HDMI cable",
+        "confidence": "sure"
+      },
+      "color": null,
+      "quantity": {
+        "value": 2,
+        "confidence": "sure"
+      },
+      "attributes": [
+        {
+          "key": "type",
+          "value": "cable",
+          "confidence": "sure"
+        }
+      ],
+      "place_id": null,
+      "purchase": null
+    },
+    {
+      "source": "logitech mx master 3 mouse - hall closet",
+      "category": {
+        "value": "gadget",
+        "confidence": "sure"
+      },
+      "brand": {
+        "value": "Logitech",
+        "confidence": "sure"
+      },
+      "model": {
+        "value": "MX Master 3",
+        "confidence": "sure"
+      },
+      "name": {
+        "value": "Logitech MX Master 3 mouse",
+        "confidence": "sure"
+      },
+      "color": null,
+      "quantity": null,
+      "attributes": [
+        {
+          "key": "type",
+          "value": "other",
+          "confidence": "likely"
+        }
+      ],
+      "place_id": "p3",
+      "purchase": null
+    }
+  ]
+}

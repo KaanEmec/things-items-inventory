@@ -1,0 +1,108 @@
+{
+  "rows": [
+    {
+      "id": "1",
+      "category": {
+        "value": "gadget",
+        "confidence": "sure"
+      },
+      "brand": {
+        "value": "Sony",
+        "confidence": "likely"
+      },
+      "model": {
+        "value": "WH-1000XM4",
+        "confidence": "likely"
+      },
+      "name": {
+        "value": "Sony WH-1000XM4 headphones",
+        "confidence": "sure"
+      },
+      "color": {
+        "value": "Black",
+        "confidence": "sure"
+      },
+      "quantity": null,
+      "attributes": [
+        {
+          "key": "type",
+          "value": "headphones",
+          "confidence": "sure"
+        }
+      ]
+    },
+    {
+      "id": "2",
+      "category": {
+        "value": "other",
+        "confidence": "sure"
+      },
+      "brand": {
+        "value": "IKEA",
+        "confidence": "sure"
+      },
+      "model": {
+        "value": "LACK",
+        "confidence": "sure"
+      },
+      "name": {
+        "value": "IKEA LACK side table",
+        "confidence": "sure"
+      },
+      "color": null,
+      "quantity": null,
+      "attributes": [
+        {
+          "key": "type",
+          "value": "side table",
+          "confidence": "sure"
+        }
+      ]
+    },
+    {
+      "id": "3",
+      "category": {
+        "value": "part",
+        "confidence": "sure"
+      },
+      "brand": null,
+      "model": null,
+      "name": {
+        "value": "HDMI cable 2 m",
+        "confidence": "sure"
+      },
+      "color": null,
+      "quantity": {
+        "value": 3,
+        "confidence": "sure"
+      },
+      "attributes": [
+        {
+          "key": "type",
+          "value": "cable",
+          "confidence": "sure"
+        },
+        {
+          "key": "ends",
+          "value": "HDMI to HDMI",
+          "confidence": "likely"
+        },
+        {
+          "key": "length_m",
+          "value": "2",
+          "confidence": "sure"
+        }
+      ]
+    },
+    {
+      "id": "4",
+      "category": null,
+      "brand": null,
+      "model": null,
+      "name": null,
+      "color": null,
+      "quantity": null,
+      "attributes": []
+    }
+  ]
+}

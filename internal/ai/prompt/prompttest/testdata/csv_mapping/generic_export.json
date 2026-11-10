@@ -1,0 +1,67 @@
+{
+  "columns": [
+    {
+      "column": 0,
+      "target": "ignore",
+      "attribute": null,
+      "confidence": "sure"
+    },
+    {
+      "column": 1,
+      "target": "name",
+      "attribute": null,
+      "confidence": "sure"
+    },
+    {
+      "column": 2,
+      "target": "brand",
+      "attribute": null,
+      "confidence": "sure"
+    },
+    {
+      "column": 3,
+      "target": "model",
+      "attribute": null,
+      "confidence": "sure"
+    },
+    {
+      "column": 4,
+      "target": "quantity",
+      "attribute": null,
+      "confidence": "sure"
+    },
+    {
+      "column": 5,
+      "target": "place",
+      "attribute": null,
+      "confidence": "sure"
+    },
+    {
+      "column": 6,
+      "target": "purchase_date",
+      "attribute": null,
+      "confidence": "sure"
+    },
+    {
+      "column": 7,
+      "target": "price",
+      "attribute": null,
+      "confidence": "sure"
+    },
+    {
+      "column": 8,
+      "target": "notes",
+      "attribute": null,
+      "confidence": "sure"
+    },
+    {
+      "column": 9,
+      "target": "ignore",
+      "attribute": null,
+      "confidence": "likely"
+    }
+  ],
+  "category": null,
+  "date_format": "YYYY-MM-DD",
+  "decimal_comma": false
+}

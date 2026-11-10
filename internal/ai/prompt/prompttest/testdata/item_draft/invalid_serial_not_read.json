@@ -1,0 +1,32 @@
+{
+  "read_text": [
+    "SONY"
+  ],
+  "category": {
+    "value": "gadget",
+    "confidence": "sure"
+  },
+  "brand": {
+    "value": "Sony",
+    "confidence": "sure"
+  },
+  "model": {
+    "value": "WH-1000XM4",
+    "confidence": "likely"
+  },
+  "serial": {
+    "value": "5012345",
+    "confidence": "sure"
+  },
+  "name": {
+    "value": "Sony WH-1000XM4 headphones",
+    "confidence": "sure"
+  },
+  "color": null,
+  "condition": null,
+  "quantity": null,
+  "attributes": [],
+  "purchase": null,
+  "note": null,
+  "needs": []
+}
