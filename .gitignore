@@ -1,0 +1,25 @@
+# Written by ProjectHub: build outputs and machine-local files stay on each device.
+node_modules/
+dist/
+build/
+out/
+target/
+.next/
+.nuxt/
+.turbo/
+.cache/
+coverage/
+__pycache__/
+.venv/
+venv/
+.gradle/
+.dart_tool/
+Pods/
+DerivedData/
+.build/
+xcuserdata/
+*.xcarchive
+*.ipa
+*.apk
+*.aab
+.DS_Store
