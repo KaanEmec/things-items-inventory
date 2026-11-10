@@ -448,6 +448,40 @@ func (q *Queries) ListHomes(ctx context.Context, arg ListHomesParams) ([]Home, e
 	return items, nil
 }
 
+const listRoomColors = `-- name: ListRoomColors :many
+SELECT color FROM places
+WHERE household_id = ? AND home_id = ? AND kind = 'room' AND deleted_at IS NULL AND color IS NOT NULL
+`
+
+type ListRoomColorsParams struct {
+	HouseholdID string
+	HomeID      sql.NullString
+}
+
+// Colours already given to the live rooms of a home.
+func (q *Queries) ListRoomColors(ctx context.Context, arg ListRoomColorsParams) ([]sql.NullString, error) {
+	rows, err := q.db.QueryContext(ctx, listRoomColors, arg.HouseholdID, arg.HomeID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []sql.NullString
+	for rows.Next() {
+		var color sql.NullString
+		if err := rows.Scan(&color); err != nil {
+			return nil, err
+		}
+		items = append(items, color)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listSiblings = `-- name: ListSiblings :many
 SELECT id, household_id, created_at, updated_at, deleted_at, home_id, parent_id, kind, name, sort, path, lineage, goes_to_id, color, daily_use, note, box_number, box_status, handling, packed_at, packed_by, label_printed_at FROM places
 WHERE household_id = ?1 AND deleted_at IS NULL

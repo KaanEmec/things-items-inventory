@@ -42,12 +42,14 @@ func (s *Service) Routes(mux *httpapi.Mux) {
 
 	mux.HandleFunc("GET /api/v1/categories", read(s.getCategories))
 	mux.HandleFunc("GET /api/v1/me/recent-places", read(s.recentPlaces))
+	s.boxRoutes(mux)
 
 	mux.HandleFunc("GET /api/v1/homes", read(s.listHomes))
 	mux.HandleFunc("POST /api/v1/homes", admin(s.postHome))
 	mux.HandleFunc("PATCH /api/v1/homes/{id}", admin(s.patchHome))
 	mux.HandleFunc("GET /api/v1/homes/{id}/tree", read(s.getTree))
 
+	mux.HandleFunc("GET /api/v1/overview", read(s.getOverview))
 	mux.HandleFunc("GET /api/v1/history", read(s.householdHistory))
 	mux.HandleFunc("GET /api/v1/items/{id}/history", read(s.itemHistory))
 	mux.HandleFunc("GET /api/v1/places/{id}/history", read(s.placeHistory))

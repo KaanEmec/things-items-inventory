@@ -1,4 +1,5 @@
 import { explain } from '../errors'
+import type { Page } from '../api'
 import { listItems, type ItemQuery } from './items'
 import type { Item } from './types'
 
@@ -45,6 +46,33 @@ export class ItemList {
         this.loading = false
         this.loaded = true
       }
+    }
+  }
+
+  /**
+   * Reloads what is already shown (same query, same number of rows) and swaps it in at once, so a
+   * live update keeps the scroll position and never empties the list. Ignored while a load runs.
+   */
+  async refresh() {
+    if (this.loading || !this.loaded) return
+    const run = this.#run
+    const want = Math.max(this.items.length, 1)
+    try {
+      let got: Item[] = []
+      let cursor: string | null = null
+      let more = true
+      while (more && got.length < want) {
+        const page: Page<Item> = await listItems(this.query, cursor)
+        if (run !== this.#run) return
+        got = [...got, ...page.data]
+        cursor = page.next_cursor
+        more = !!cursor
+      }
+      if (run !== this.#run || this.loading) return
+      this.items = got
+      this.next = cursor
+    } catch {
+      // keep what is shown; the next change tries again
     }
   }
 

@@ -1,9 +1,10 @@
 import { svelte } from '@sveltejs/vite-plugin-svelte'
 import tailwindcss from '@tailwindcss/vite'
 import { defineConfig } from 'vitest/config'
+import { pwa } from './vite.pwa.mjs'
 
 export default defineConfig({
-  plugins: [svelte(), tailwindcss()],
+  plugins: [svelte(), tailwindcss(), pwa()],
   // Emit fonts as files: the server's CSP does not allow data: fonts.
   build: { outDir: 'dist/app', assetsInlineLimit: 0 },
   server: { proxy: { '/api': 'http://localhost:8080' } },

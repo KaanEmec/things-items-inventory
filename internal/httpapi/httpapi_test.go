@@ -16,8 +16,11 @@ import (
 )
 
 var app = fstest.MapFS{
-	"index.html":    {Data: []byte("<html>app</html>")},
-	"assets/app.js": {Data: []byte("console.log(1)")},
+	"index.html":           {Data: []byte("<html>app</html>")},
+	"assets/app.js":        {Data: []byte("console.log(1)")},
+	"sw.js":                {Data: []byte("self.skipWaiting")},
+	"manifest.webmanifest": {Data: []byte("{}")},
+	"icons/icon-192.png":   {Data: []byte("png")},
 }
 
 func get(t *testing.T, path string) *httptest.ResponseRecorder {
@@ -220,5 +223,47 @@ func TestLogsHideSecrets(t *testing.T) {
 		if strings.Contains(logs, s) {
 			t.Fatalf("logs contain %q: %s", s, logs)
 		}
+	}
+}
+
+func TestPWAHeaders(t *testing.T) {
+	cases := []struct {
+		path, cache, ctype string
+		swAllowed          bool
+	}{
+		{"/", "no-cache", "text/html", false},
+		{"/items/42", "no-cache", "text/html", false},
+		{"/assets/missing.js", "no-cache", "text/html", false}, // falls back to index.html: never immutable
+		{"/sw.js", "no-cache", "text/javascript", true},
+		{"/manifest.webmanifest", "no-cache", "application/manifest+json", false},
+		{"/assets/app.js", "public, max-age=31536000, immutable", "javascript", false},
+		{"/icons/icon-192.png", "public, max-age=86400", "image/png", false},
+	}
+	for _, c := range cases {
+		rec := get(t, c.path)
+		if got := rec.Header().Get("Cache-Control"); got != c.cache {
+			t.Errorf("%s: Cache-Control %q, want %q", c.path, got, c.cache)
+		}
+		if got := rec.Header().Get("Content-Type"); !strings.Contains(got, c.ctype) {
+			t.Errorf("%s: Content-Type %q, want %q", c.path, got, c.ctype)
+		}
+		if got := rec.Header().Get("Service-Worker-Allowed") == "/"; got != c.swAllowed {
+			t.Errorf("%s: Service-Worker-Allowed set = %v", c.path, got)
+		}
+	}
+}
+
+func TestCSPAllowsWorkerAndManifest(t *testing.T) {
+	csp := get(t, "/").Header().Get("Content-Security-Policy")
+	for _, want := range []string{"default-src 'self'", "worker-src 'self'", "manifest-src 'self'", "frame-ancestors 'none'"} {
+		if !strings.Contains(csp, want) {
+			t.Errorf("CSP %q lacks %q", csp, want)
+		}
+	}
+}
+
+func TestAPINotCacheable(t *testing.T) {
+	if cc := get(t, "/api/health").Header().Get("Cache-Control"); strings.Contains(cc, "immutable") || strings.Contains(cc, "max-age") {
+		t.Fatalf("API got Cache-Control %q", cc)
 	}
 }

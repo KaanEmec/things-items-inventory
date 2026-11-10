@@ -31,6 +31,17 @@ func linkPhotos(d *db.DB, ph *photos.Service) {
 		}
 		return out, nil
 	}
+	inventory.PlacePhotoLoader = func(ctx context.Context, q sqlc.DBTX, hid string, ids []string) (map[string]inventory.ItemPhoto, error) {
+		links, err := photos.PlaceMainLinks(ctx, q, hid, ids)
+		if err != nil {
+			return nil, err
+		}
+		out := make(map[string]inventory.ItemPhoto, len(links))
+		for id, l := range links {
+			out[id] = inventory.ItemPhoto{LinkID: l.LinkID, PhotoID: l.PhotoID, SHA256: l.SHA256, Role: l.Role, Sort: l.Sort}
+		}
+		return out, nil
+	}
 	inventory.LinkPromotedPhoto = ph.LinkItemPhoto
 
 	// POST /photos for an item that does not exist yet is a capture: the

@@ -84,7 +84,32 @@ func spa(app fs.FS) http.Handler {
 		}
 		if info, err := fs.Stat(app, name); err != nil || (info.IsDir() && name != ".") {
 			r.URL.Path = "/"
+			name = "."
 		}
+		setStaticHeaders(w.Header(), name)
 		files.ServeHTTP(w, r)
 	})
+}
+
+// setStaticHeaders sets caching and type headers for the PWA. name is the file about to be
+// served ("." for index.html, also the fallback for client routes). Hashed build output under
+// assets/ never changes, so it is cached for a year. The entry points that must be seen fresh
+// (index.html, the service worker, the manifest) are revalidated every time, so a new release
+// is noticed; everything else (icons) gets a day.
+func setStaticHeaders(h http.Header, name string) {
+	switch {
+	case name == "." || name == "index.html" || name == "sw.js" || name == "manifest.webmanifest":
+		h.Set("Cache-Control", "no-cache")
+	case strings.HasPrefix(name, "assets/"):
+		h.Set("Cache-Control", "public, max-age=31536000, immutable")
+	default:
+		h.Set("Cache-Control", "public, max-age=86400")
+	}
+	switch name {
+	case "sw.js":
+		h.Set("Content-Type", "text/javascript; charset=utf-8")
+		h.Set("Service-Worker-Allowed", "/")
+	case "manifest.webmanifest":
+		h.Set("Content-Type", "application/manifest+json")
+	}
 }

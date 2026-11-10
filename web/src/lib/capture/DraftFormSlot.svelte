@@ -2,6 +2,7 @@
   // SLOT for J6.7: the AI draft form (name, category, attributes, Save) for the item shown on the
   // stage. J6.7 replaces the body of this component. `itemId` is the client ULID of the selected
   // item (the draft exists on the server once its first photo has uploaded); `uploaded` says so.
+  import AiHint from '../AiHint.svelte'
   interface Props {
     itemId: string | null
     uploaded: boolean
@@ -16,5 +17,6 @@
     The draft is created as soon as the first photo has uploaded.
   {:else}
     The draft details appear here.
+    <AiHint role="vision" />
   {/if}
 </div>

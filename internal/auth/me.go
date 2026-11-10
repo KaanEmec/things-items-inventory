@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"net/http"
@@ -28,7 +29,7 @@ type meResponse struct {
 	Households      []householdRef `json:"households"`
 	ActiveHousehold householdRef   `json:"active_household"`
 	Role            string         `json:"role"`
-	PackingBox      any            `json:"packing_box"` // filled in when places exist (J3.x)
+	PackingBox      any            `json:"packing_box"` // {id, name, box_number, box_status, goes_to} or null
 }
 
 // writeMe answers with the caller's profile for the given user and active
@@ -56,7 +57,49 @@ func (s *Service) writeMe(w http.ResponseWriter, r *http.Request, status int, us
 			me.ActiveHousehold, me.Role = ref, h.Role
 		}
 	}
+	me.PackingBox = s.packingBox(ctx, q, householdID, userID)
 	httpapi.WriteJSON(w, status, me)
+}
+
+// packingBox is the person's "packing now" box in the active household, or
+// nil. It has the same shape as inventory.PackingBox (the packages cannot
+// import each other: inventory imports auth).
+func (s *Service) packingBox(ctx context.Context, q *sqlc.Queries, householdID, userID string) any {
+	m, err := q.GetMembership(ctx, sqlc.GetMembershipParams{HouseholdID: householdID, UserID: userID})
+	if err != nil || !m.PackingBoxID.Valid {
+		return nil
+	}
+	p, err := q.GetPlace(ctx, sqlc.GetPlaceParams{HouseholdID: householdID, ID: m.PackingBoxID.String})
+	if err != nil || p.Kind != "box" || p.DeletedAt.Valid {
+		return nil
+	}
+	out := struct {
+		ID        string  `json:"id"`
+		Name      string  `json:"name"`
+		BoxNumber *int64  `json:"box_number"`
+		BoxStatus *string `json:"box_status"`
+		GoesTo    any     `json:"goes_to"`
+	}{ID: p.ID, Name: p.Name}
+	if p.BoxNumber.Valid {
+		out.BoxNumber = &p.BoxNumber.Int64
+	}
+	if p.BoxStatus.Valid {
+		out.BoxStatus = &p.BoxStatus.String
+	}
+	if p.GoesToID.Valid {
+		if g, err := q.GetPlace(ctx, sqlc.GetPlaceParams{HouseholdID: householdID, ID: p.GoesToID.String}); err == nil {
+			var color *string
+			if g.Color.Valid {
+				color = &g.Color.String
+			}
+			out.GoesTo = struct {
+				ID    string  `json:"id"`
+				Name  string  `json:"name"`
+				Color *string `json:"color"`
+			}{g.ID, g.Name, color}
+		}
+	}
+	return out
 }
 
 func (s *Service) getMe(w http.ResponseWriter, r *http.Request) {

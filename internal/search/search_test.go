@@ -248,6 +248,9 @@ func TestPlacesLinesAndPaths(t *testing.T) {
 	if !slices.Contains(ids(r.Items), it) || !slices.Contains(ids(r.Lines), line) {
 		t.Fatalf("items %v lines %v", ids(r.Items), ids(r.Lines))
 	}
+	if got := e.search("buttons").Lines; len(got) != 1 || got[0].PlaceID != drawer {
+		t.Fatalf("line place_id %+v, want %s", got, drawer)
+	}
 	if got := e.search("buttons").Lines; len(got) != 1 || got[0].Path != "3rd drawer · Left closet · Bedroom" {
 		t.Fatalf("%+v", got)
 	}

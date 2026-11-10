@@ -17,6 +17,7 @@
   import type { Catalog, Item, PlaceShort } from '../lib/inventory/types'
   import { scrollToRow, windowRange } from '../lib/inventory/window'
   import { navigate, router } from '../lib/router.svelte'
+  import { stream } from '../lib/stream.svelte'
   import { filterCount, filtersToSearch, parseFilters, toQuery, type Filters } from '../lib/search/filters'
   import { canFireShortcut, dialogIsOpen } from '../lib/search/guard'
   import { palette } from '../lib/search/state.svelte'
@@ -67,6 +68,9 @@
     filterKey
     untrack(() => list.reset(toQuery(filters)))
   })
+
+  // Live: another member or a background job changed something.
+  $effect(() => stream.onBurst(['item', 'box', 'place', 'job', 'resync'], () => list.refresh()))
 
   // The chip needs the place's name; the URL only holds its id.
   $effect(() => {

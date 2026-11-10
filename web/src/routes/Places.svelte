@@ -22,6 +22,7 @@
   import SpotsStrip from '../lib/places/SpotsStrip.svelte'
   import { failure, isNotEmpty, PlacesStore } from '../lib/places/store.svelte'
   import { navigate, router } from '../lib/router.svelte'
+  import { stream } from '../lib/stream.svelte'
   import FlowFrame from '../lib/shell/FlowFrame.svelte'
   import Group from '../lib/shell/Group.svelte'
   import PageHeader from '../lib/shell/PageHeader.svelte'
@@ -54,6 +55,8 @@
   $effect(() => {
     untrack(() => store.init(selectedId))
   })
+  $effect(() => store.watch())
+  $effect(() => stream.onBurst(['item', 'box', 'place', 'job', 'resync'], () => list.refresh()))
 
   // A contents line opens the place that holds it.
   $effect(() => {

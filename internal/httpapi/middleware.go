@@ -110,7 +110,8 @@ func securityHeaders(next http.Handler) http.Handler {
 		h := w.Header()
 		// 'unsafe-inline' styles: Svelte sets inline style attributes.
 		h.Set("Content-Security-Policy", "default-src 'self'; img-src 'self' blob: data:; "+
-			"style-src 'self' 'unsafe-inline'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'")
+			"style-src 'self' 'unsafe-inline'; worker-src 'self'; manifest-src 'self'; "+
+			"frame-ancestors 'none'; base-uri 'self'; form-action 'self'")
 		h.Set("X-Content-Type-Options", "nosniff")
 		h.Set("Referrer-Policy", "same-origin")
 		next.ServeHTTP(w, r)

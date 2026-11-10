@@ -108,6 +108,9 @@ func CreateLines(ctx context.Context, tx *sql.Tx, householdID, userID, placeID s
 		if err := recordLines(ctx, tx, householdID, userID, placeID, "created", nil, map[string]any{"count": len(added), "lines": added}); err != nil {
 			return nil, err
 		}
+		if err := openIfEmpty(ctx, tx, householdID, userID, nullStr(placeID)); err != nil {
+			return nil, err
+		}
 	}
 	return out, nil
 }

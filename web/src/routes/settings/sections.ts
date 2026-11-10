@@ -3,6 +3,7 @@ import { can, type Role } from '../../lib/auth.svelte'
 import type { IconName } from '../../lib/icons'
 import Account from './Account.svelte'
 import AI from './AI.svelte'
+import App from './App.svelte'
 import Household from './Household.svelte'
 import Members from './Members.svelte'
 import Tokens from './Tokens.svelte'
@@ -26,6 +27,7 @@ export const sections: SettingsSection[] = [
   { id: 'ai', title: 'AI', icon: 'sparkle', summary: 'Photo understanding and text endpoints', component: AI },
   { id: 'tokens', title: 'Access tokens', icon: 'link', summary: 'For agents and scripts', component: Tokens, minRole: 'member' },
   { id: 'account', title: 'Account', icon: 'shield', summary: 'Your name, email, password, sessions', component: Account },
+  { id: 'app', title: 'App', icon: 'device', summary: 'Install on this device, updates', component: App },
 ]
 
 export const visibleSections = () => sections.filter((s) => !s.minRole || can(s.minRole))

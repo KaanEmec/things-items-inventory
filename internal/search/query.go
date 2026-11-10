@@ -21,7 +21,8 @@ type Match struct {
 	SnippetMarks []Mark `json:"snippet_marks"`
 	Path         string `json:"path"`
 	BoxNumber    *int64 `json:"box_number,omitempty"`
-	Why          string `json:"why,omitempty"` // Similar only: brand_model | name
+	PlaceID      string `json:"place_id,omitempty"` // lines only: the place or box that holds the line
+	Why          string `json:"why,omitempty"`      // Similar only: brand_model | name
 }
 
 // Results is the answer to a search: hits grouped by kind, each group best
@@ -94,6 +95,11 @@ func Search(ctx context.Context, q Querier, householdID, query string, opt Optio
 		hits, err := searchKind(ctx, q, householdID, kind, fq, tokens, boxNo, limit)
 		if err != nil {
 			return res, err
+		}
+		if kind == KindLine {
+			if err := fillLinePlaces(ctx, q, householdID, hits); err != nil {
+				return res, err
+			}
 		}
 		out := make([]Match, len(hits))
 		for i := range hits {
@@ -429,4 +435,38 @@ func jaccard(a, b []string) float64 {
 		return 0
 	}
 	return float64(inter) / float64(union)
+}
+
+// fillLinePlaces sets PlaceID on line hits (the place holding the line) with
+// one query for all of them.
+func fillLinePlaces(ctx context.Context, q Querier, hid string, hits []hit) error {
+	if len(hits) == 0 {
+		return nil
+	}
+	args := make([]any, 0, len(hits)+1)
+	args = append(args, hid)
+	for _, h := range hits {
+		args = append(args, h.ID)
+	}
+	rows, err := q.QueryContext(ctx, `SELECT id, place_id FROM contents_lines WHERE household_id = ? AND id IN (`+
+		strings.TrimSuffix(strings.Repeat("?,", len(hits)), ",")+`)`, args...)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	place := map[string]string{}
+	for rows.Next() {
+		var id, pid string
+		if err := rows.Scan(&id, &pid); err != nil {
+			return err
+		}
+		place[id] = pid
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	for i := range hits {
+		hits[i].PlaceID = place[hits[i].ID]
+	}
+	return nil
 }

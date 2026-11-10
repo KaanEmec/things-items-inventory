@@ -3,7 +3,9 @@
   import { can } from '../../lib/auth.svelte'
   import { explain } from '../../lib/errors'
   import FormError from '../../lib/ui/FormError.svelte'
+  import AiActivity from './AiActivity.svelte'
   import AiBand from './AiBand.svelte'
+  import AiPause from './AiPause.svelte'
 
   let message = $state('')
   const editable = $derived(can('admin'))
@@ -14,8 +16,10 @@
 
 <FormError {message} />
 {#if ai.vision && ai.text}
+  <AiPause {editable} />
   <AiBand role="vision" profile={ai.vision} {editable} />
   <AiBand role="text" profile={ai.text} {editable} />
+  <AiActivity />
   <p class="m-0 px-4 py-3 text-[12px] text-muted md:px-6 md:max-w-2xl">Photos and text are sent to the endpoint you set here, and nowhere else. The AI is optional: everything else works without it.</p>
 {:else if !message}
   <p class="m-0 px-4 py-4 text-[14px] text-muted md:px-6">Loading</p>

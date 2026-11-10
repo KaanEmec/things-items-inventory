@@ -39,8 +39,16 @@ func SeedTestData(ctx context.Context, d *db.DB, householdID string) (pathValues
 		if _, err := MoveItem(ctx, tx, householdID, "", item.ID, &room.ID); err != nil {
 			return err
 		}
-		pathValues = []string{h.ID, room.ID, drawer.ID, item.ID, lines[0].ID, id.New()}
-		markers = []string{"Secret-Home-7Q", "Secret-Room-7Q", "Secret-Drawer-7Q", "Secret-Item-7Q", "Secret-Brand-7Q", "Secret-Line-7Q"}
+		// A box going to the room, with the item in it (moved there last).
+		boxes, err := CreateBoxes(ctx, tx, householdID, 1, 0, 0, BoxInput{GoesToID: room.ID, Note: "Secret-BoxNote-7Q"})
+		if err != nil {
+			return err
+		}
+		if _, err := MoveItem(ctx, tx, householdID, "", item.ID, &boxes[0].ID); err != nil {
+			return err
+		}
+		pathValues = []string{h.ID, room.ID, drawer.ID, item.ID, lines[0].ID, boxes[0].ID, id.New()}
+		markers = []string{"Secret-Home-7Q", "Secret-Room-7Q", "Secret-Drawer-7Q", "Secret-Item-7Q", "Secret-Brand-7Q", "Secret-Line-7Q", "Secret-BoxNote-7Q"}
 		return nil
 	})
 	return pathValues, markers, err

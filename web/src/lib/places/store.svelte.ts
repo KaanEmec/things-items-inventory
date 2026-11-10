@@ -1,4 +1,5 @@
 import { ApiError } from '../api'
+import { stream } from '../stream.svelte'
 import { explain } from '../errors'
 import {
   buildRows,
@@ -98,6 +99,12 @@ export class PlacesStore {
 
   /** Quietly brings the tree back in line with the server (after an edit or a failure). */
   refresh = () => this.load()
+
+  /** Live: reload the tree when another member or a job changes places or items (counts). Returns the unsubscribe. */
+  watch = () =>
+    stream.onBurst(['place', 'box', 'item', 'resync'], () => {
+      if (this.loaded && this.homeId) void this.load()
+    })
 
   /** Opens the way to a place; if it belongs to another home, switches to it. */
   reveal(id: string) {

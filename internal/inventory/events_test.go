@@ -93,6 +93,10 @@ type writeCase struct {
 }
 
 func writeCases() []writeCase {
+	return append(baseWriteCases(), boxWriteCases()...)
+}
+
+func baseWriteCases() []writeCase {
 	str := func(s string) *string { return &s }
 	type tc = writeCase
 	return []tc{

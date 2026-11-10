@@ -117,6 +117,10 @@ func (s *Service) getPlace(w http.ResponseWriter, r *http.Request) {
 	for i, k := range kids {
 		children[i] = placeJSON(k, nil, nil)
 	}
+	if err := fillPhotos(ctx, s.db.Read, hid, children); err != nil {
+		fail(w, err)
+		return
+	}
 	httpapi.WriteJSON(w, http.StatusOK, struct {
 		Place
 		Children []Place `json:"children"`

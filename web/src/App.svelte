@@ -3,6 +3,7 @@
   import Shell from './lib/shell/Shell.svelte'
   import { auth, boot } from './lib/auth.svelte'
   import { captureQueue } from './lib/capture/queue.svelte'
+  import './lib/stream.svelte' // opens the live stream while signed in
   import { fragmentToken, navigate, router, startRouter } from './lib/router.svelte'
   import Button from './lib/ui/Button.svelte'
   import Toast from './lib/ui/Toast.svelte'

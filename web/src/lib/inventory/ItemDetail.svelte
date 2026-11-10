@@ -1,10 +1,12 @@
 <script lang="ts">
   import { untrack } from 'svelte'
+  import { ApiError } from '../api'
   import { can } from '../auth.svelte'
   import { explain } from '../errors'
   import { ago } from '../format'
   import Icon from '../Icon.svelte'
   import { navigate, router } from '../router.svelte'
+  import { stream } from '../stream.svelte'
   import FlowFrame from '../shell/FlowFrame.svelte'
   import Avatar from '../ui/Avatar.svelte'
   import Button from '../ui/Button.svelte'
@@ -14,6 +16,7 @@
   import { showToast } from '../ui/toasts.svelte'
   import { categoryLabel, humanize, valueLabel } from './categories'
   import { attrValue, blank, fromMinor, toMinor } from './form'
+  import History from './History.svelte'
   import InlineField from './InlineField.svelte'
   import ItemForm from './ItemForm.svelte'
   import { confirmItem, deleteItem, getItem, markSeen, moveItem, patchItem, restoreItem } from './items'
@@ -56,6 +59,27 @@
       (e) => {
         if (cur === id) loadError = explain(e).message
       },
+    )
+  })
+
+  // Another member or a background job changed this item: show it, unless our copy is newer.
+  // Fields being edited keep their own draft (InlineField), so typing is never overwritten.
+  $effect(() => {
+    const cur = id
+    return stream.onBurst(
+      ['item', 'job', 'resync'],
+      () => {
+        getItem(cur).then(
+          (it) => {
+            if (cur !== id || (item && it.updated_at < item.updated_at)) return
+            setItem(it)
+          },
+          (e) => {
+            if (cur === id && e instanceof ApiError && e.status === 404) loadError = explain(e).message
+          },
+        )
+      },
+      (m) => m.type === 'resync' || (m.type === 'item' ? m.id === cur : m.item_id === cur),
     )
   })
 
@@ -326,6 +350,8 @@
       <InlineField label="Seller" value={it.purchase.seller ?? ''} ai={ai('seller')} locked={!canEdit} errorKeys={['seller', 'purchase.seller']} save={(t) => change({ purchase: { seller: blank(t) } }, { purchase: { seller: it.purchase.seller } }, 'Seller')} />
       <InlineField label="Warranty until" kind="date" value={it.warranty.end?.slice(0, 10) ?? ''} ai={ai('warranty_end')} locked={!canEdit} errorKeys={['warranty_end', 'warranty.end']} save={(t) => change({ warranty: { end: blank(t) } }, { warranty: { end: it.warranty.end } }, 'Warranty')} />
     </div>
+
+    <History itemId={it.id} />
   {/if}
 {/snippet}
 

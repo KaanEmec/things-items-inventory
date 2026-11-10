@@ -34,7 +34,8 @@ func New(d *db.DB) *Service {
 //	match = {"kind": "item|line|place|box", "id": "...",
 //	         "title": "plain text", "title_marks": [[start, end], ...],
 //	         "snippet": "plain text", "snippet_marks": [[start, end], ...],
-//	         "path": "place path", "box_number": 12 (boxes only)}
+//	         "path": "place path", "box_number": 12 (boxes only),
+//	         "place_id": "..." (lines only: the place or box holding the line)}
 //
 // Text is never HTML. A mark is a [start, end) range in UTF-16 code units
 // of the string beside it, so the page can cut with text.slice(start, end)

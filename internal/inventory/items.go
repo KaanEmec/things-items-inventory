@@ -392,6 +392,9 @@ func (e *edit) applyGroup(group string, v any) error {
 
 func (e *edit) setPlace(ctx context.Context, q *sqlc.Queries, hid string, v any) error {
 	if v == nil {
+		if err := e.followPlace(ctx, q, hid, nil); err != nil {
+			return err
+		}
 		e.row.PlaceID = sql.NullString{}
 		return nil
 	}
@@ -409,7 +412,31 @@ func (e *edit) setPlace(ctx context.Context, q *sqlc.Queries, hid string, v any)
 	if isNoRows(err) || p.DeletedAt.Valid {
 		return fieldErr("place_id", "No such place.")
 	}
+	if err := e.followPlace(ctx, q, hid, &p); err != nil {
+		return err
+	}
 	e.row.PlaceID = nullStr(s)
+	return nil
+}
+
+// followPlace applies "status follows place" (spec section 3) for a move to
+// the place `to` (nil = nowhere): into a box the item becomes packed; a packed
+// item leaving a box for anything else becomes stored. Called before the
+// row's place changes.
+func (e *edit) followPlace(ctx context.Context, q *sqlc.Queries, hid string, to *sqlc.Place) error {
+	if to != nil && to.Kind == "box" {
+		e.row.Status = "packed"
+		return nil
+	}
+	if e.row.Status == "packed" && e.row.PlaceID.Valid {
+		from, err := q.GetPlace(ctx, sqlc.GetPlaceParams{HouseholdID: hid, ID: e.row.PlaceID.String})
+		if err != nil && !isNoRows(err) {
+			return err
+		}
+		if err == nil && from.Kind == "box" {
+			e.row.Status = "stored"
+		}
+	}
 	return nil
 }
 
@@ -538,7 +565,7 @@ func CreateItem(ctx context.Context, tx *sql.Tx, householdID, userID string, n N
 		PlaceID: row.PlaceID.String, UserID: userID, After: after}); err != nil {
 		return row, false, err
 	}
-	return row, true, nil
+	return row, true, openIfEmpty(ctx, tx, householdID, userID, row.PlaceID)
 }
 
 // UpdateItem is a person's partial edit: the fields in f change and leave
@@ -557,7 +584,10 @@ func UpdateItem(ctx context.Context, tx *sql.Tx, householdID, userID, itemID str
 	if err != nil {
 		return saved, err
 	}
-	return saved, recordItemDiff(ctx, tx, householdID, userID, row, saved, false)
+	if err := recordItemDiff(ctx, tx, householdID, userID, row, saved, false); err != nil {
+		return saved, err
+	}
+	return saved, boxReceived(ctx, tx, householdID, userID, row, saved)
 }
 
 // MoveItem puts an item in a place (nil = not found / not placed) and sets
@@ -580,7 +610,18 @@ func MoveItem(ctx context.Context, tx *sql.Tx, householdID, userID, itemID strin
 	if err != nil {
 		return saved, err
 	}
-	return saved, recordItemDiff(ctx, tx, householdID, userID, row, saved, true)
+	if err := recordItemDiff(ctx, tx, householdID, userID, row, saved, true); err != nil {
+		return saved, err
+	}
+	return saved, boxReceived(ctx, tx, householdID, userID, row, saved)
+}
+
+// boxReceived opens an empty box an item was just put into.
+func boxReceived(ctx context.Context, tx *sql.Tx, hid, userID string, before, after sqlc.Item) error {
+	if before.PlaceID == after.PlaceID {
+		return nil
+	}
+	return openIfEmpty(ctx, tx, hid, userID, after.PlaceID)
 }
 
 // MarkSeen is "I saw it here": it sets last_seen_at.
@@ -726,6 +767,9 @@ func BulkUpdate(ctx context.Context, tx *sql.Tx, householdID, userID string, ids
 			return nil, err
 		}
 		if err := recordItemDiff(ctx, tx, householdID, userID, row, saved, false); err != nil {
+			return nil, err
+		}
+		if err := boxReceived(ctx, tx, householdID, userID, row, saved); err != nil {
 			return nil, err
 		}
 		out = append(out, saved)

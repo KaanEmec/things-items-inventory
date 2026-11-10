@@ -122,3 +122,8 @@ UPDATE places SET deleted_at = NULL, updated_at = ? WHERE household_id = ? AND i
 
 -- name: ClearPackingBox :exec
 UPDATE memberships SET packing_box_id = NULL WHERE household_id = ? AND packing_box_id = ?;
+
+-- name: ListRoomColors :many
+-- Colours already given to the live rooms of a home.
+SELECT color FROM places
+WHERE household_id = ? AND home_id = ? AND kind = 'room' AND deleted_at IS NULL AND color IS NOT NULL;

@@ -567,3 +567,24 @@ func (s *Service) LinkItemPhoto(ctx context.Context, tx *sql.Tx, householdID, ph
 	_, _, err := s.linkIn(ctx, sqlc.New(tx), householdID, photoID, "", RoleItem, nullStr(itemID), sql.NullString{})
 	return err
 }
+
+// PlaceMainLinks returns the main photo (the first `place` link) of each of
+// the given places on any connection or transaction q, in ONE query. Places
+// without a place photo are absent from the result.
+func PlaceMainLinks(ctx context.Context, q sqlc.DBTX, householdID string, ids []string) (map[string]LinkInfo, error) {
+	out := map[string]LinkInfo{}
+	if len(ids) == 0 {
+		return out, nil
+	}
+	rows, err := sqlc.New(q).ListLinksForPlaces(ctx, sqlc.ListLinksForPlacesParams{HouseholdID: householdID, PlaceIds: nullStrs(ids)})
+	if err != nil {
+		return nil, err
+	}
+	for _, r := range rows {
+		if _, ok := out[r.PlaceID.String]; ok || r.Role != RolePlace {
+			continue
+		}
+		out[r.PlaceID.String] = LinkInfo{r.LinkID, r.PhotoID, r.Sha256, r.Role, r.Sort}
+	}
+	return out, nil
+}

@@ -8,13 +8,14 @@
     title?: string
     value?: PlaceShort | null
     allowNone?: boolean
+    initialQuery?: string
     onpick: (place: PlaceShort | null) => void
   }
-  let { open = $bindable(false), title = 'Choose a place', value = null, allowNone = false, onpick }: Props = $props()
+  let { open = $bindable(false), title = 'Choose a place', value = null, allowNone = false, initialQuery, onpick }: Props = $props()
 </script>
 
 <Dialog bind:open {title}>
   {#if open}
-    <PlacePicker {value} {allowNone} onpick={(p) => ((open = false), onpick(p))} />
+    <PlacePicker {value} {allowNone} {initialQuery} onpick={(p) => ((open = false), onpick(p))} />
   {/if}
 </Dialog>

@@ -13,8 +13,10 @@
     onpick: (place: PlaceShort | null) => void
     /** Offer "Not placed" (a null place). */
     allowNone?: boolean
+    /** Start with the search box focused and this text typed in (the quick-add sheet types straight into it). */
+    initialQuery?: string
   }
-  let { value = null, onpick, allowNone = false }: Props = $props()
+  let { value = null, onpick, allowNone = false, initialQuery }: Props = $props()
 
   const kindIcon: Record<string, IconName> = { floor: 'stairs', room: 'door', furniture: 'cabinet', spot: 'drawer', box: 'box' }
 
@@ -23,7 +25,8 @@
   let homeId = $state(value?.home_id ?? '')
   let places = $state.raw<TreePlace[]>([])
   let expanded = $state.raw(new Set<string>())
-  let q = $state('')
+  /* svelte-ignore state_referenced_locally */
+  let q = $state(initialQuery ?? '')
   let loading = $state(true)
   let error = $state('')
   const recents = recentPlaces(auth.householdId)
@@ -92,7 +95,19 @@
   <label class="flex h-11 items-center gap-2 rounded-control border border-border-input bg-surface px-3 md:h-9">
     <Icon name="search" class="text-muted" />
     <span class="sr-only">Search places</span>
-    <input bind:value={q} placeholder="Search places" class="min-w-0 flex-1 border-0 bg-transparent text-[16px] outline-0 md:text-[14px]" />
+    <input
+      bind:value={q}
+      placeholder="Search places"
+      class="min-w-0 flex-1 border-0 bg-transparent text-[16px] outline-0 md:text-[14px]"
+      onkeydown={(e) => {
+        if (initialQuery !== undefined && e.key === 'Enter' && found[0]) pick(found[0])
+      }}
+      {@attach (el) => {
+        if (initialQuery === undefined) return
+        el.focus()
+        el.setSelectionRange(el.value.length, el.value.length)
+      }}
+    />
   </label>
 
   {#if error}<p role="alert" class="m-0 text-[13px] text-danger">{error}</p>{/if}

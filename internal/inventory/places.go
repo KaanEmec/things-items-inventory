@@ -46,29 +46,56 @@ type Counts struct {
 	Lines      int64 `json:"lines"`
 }
 
-// Place is the full place JSON. Photo is filled by the photos feature.
+// Place is the full place JSON. Photo is the place's main photo (role
+// `place`), filled from PlacePhotoLoader in one query per tree or list.
 type Place struct {
 	PlaceShort
-	ParentID       *string  `json:"parent_id"`
-	Sort           int64    `json:"sort"`
-	GoesTo         *GoesTo  `json:"goes_to"`
-	DailyUse       bool     `json:"daily_use"`
-	Note           *string  `json:"note"`
-	BoxStatus      *string  `json:"box_status"`
-	Handling       []string `json:"handling"`
-	PackedAt       *string  `json:"packed_at"`
-	LabelPrintedAt *string  `json:"label_printed_at"`
-	Photo          any      `json:"photo"`
-	Counts         *Counts  `json:"counts,omitempty"`
-	DeletedAt      *string  `json:"deleted_at,omitempty"`
-	CreatedAt      string   `json:"created_at"`
-	UpdatedAt      string   `json:"updated_at"`
+	ParentID       *string    `json:"parent_id"`
+	Sort           int64      `json:"sort"`
+	GoesTo         *GoesTo    `json:"goes_to"`
+	DailyUse       bool       `json:"daily_use"`
+	Note           *string    `json:"note"`
+	BoxStatus      *string    `json:"box_status"`
+	Handling       []string   `json:"handling"`
+	PackedAt       *string    `json:"packed_at"`
+	LabelPrintedAt *string    `json:"label_printed_at"`
+	Photo          *ItemPhoto `json:"photo"`
+	Counts         *Counts    `json:"counts,omitempty"`
+	DeletedAt      *string    `json:"deleted_at,omitempty"`
+	CreatedAt      string     `json:"created_at"`
+	UpdatedAt      string     `json:"updated_at"`
 }
 
 // Short returns the short JSON of a place row.
 func Short(p sqlc.Place) PlaceShort {
 	return PlaceShort{ID: p.ID, Kind: p.Kind, Name: p.Name, Path: p.Path, HomeID: strPtr(p.HomeID),
 		BoxNumber: intPtr(p.BoxNumber), Color: strPtr(p.Color)}
+}
+
+// PlacePhotoLoader returns the main place photo of each given place, in one
+// query. The server glue sets it at start-up (inventory and photos do not
+// import each other); until then places carry no photo.
+var PlacePhotoLoader func(ctx context.Context, q sqlc.DBTX, householdID string, placeIDs []string) (map[string]ItemPhoto, error)
+
+// fillPhotos sets Photo on every place of the slice with one lookup.
+func fillPhotos(ctx context.Context, q sqlc.DBTX, householdID string, places []Place) error {
+	if PlacePhotoLoader == nil || len(places) == 0 {
+		return nil
+	}
+	ids := make([]string, len(places))
+	for i := range places {
+		ids[i] = places[i].ID
+	}
+	m, err := PlacePhotoLoader(ctx, q, householdID, ids)
+	if err != nil {
+		return err
+	}
+	for i := range places {
+		if p, ok := m[places[i].ID]; ok {
+			places[i].Photo = &p
+		}
+	}
+	return nil
 }
 
 func parseHandling(s string) []string {
@@ -126,7 +153,11 @@ func PlaceView(ctx context.Context, q sqlc.DBTX, householdID string, p sqlc.Plac
 			gt = &GoesTo{ID: g.ID, Name: g.Name, Color: strPtr(g.Color)}
 		}
 	}
-	return placeJSON(p, gt, &Counts{Items: c.ItemsDirect, ItemsBelow: c.ItemsBelow, Lines: c.LinesDirect}), nil
+	out := []Place{placeJSON(p, gt, &Counts{Items: c.ItemsDirect, ItemsBelow: c.ItemsBelow, Lines: c.LinesDirect})}
+	if err := fillPhotos(ctx, q, householdID, out); err != nil {
+		return Place{}, err
+	}
+	return out[0], nil
 }
 
 // Tree loads every live place of a home in one query, with counts per place:
@@ -177,6 +208,9 @@ func Tree(ctx context.Context, q sqlc.DBTX, householdID, homeID string) ([]Place
 		if r.GoesToID.Valid {
 			out[i].GoesTo = &GoesTo{ID: r.GoesToID.String, Name: r.GoesToName.String, Color: strPtr(r.GoesToColor)}
 		}
+	}
+	if err := fillPhotos(ctx, q, householdID, out); err != nil {
+		return nil, err
 	}
 	return out, nil
 }
@@ -426,6 +460,11 @@ func CreatePlace(ctx context.Context, tx *sql.Tx, householdID string, in PlaceIn
 			return sqlc.Place{}, err
 		}
 	}
+	if in.Kind == "room" && in.Color == "" {
+		if in.Color, err = nextRoomColor(ctx, q, householdID, homeID.String); err != nil {
+			return sqlc.Place{}, err
+		}
+	}
 	handling := in.Handling
 	if handling == nil {
 		handling = []string{}
@@ -445,6 +484,28 @@ func CreatePlace(ctx context.Context, tx *sql.Tx, householdID string, in PlaceIn
 		return p, err
 	}
 	return p, nil
+}
+
+// nextRoomColor picks the colour for a new room of a home: the first colour of
+// the palette no live room of the home has, or, when all are taken, the one
+// used least (the palette starts over). The colour belongs to the room; boxes
+// show the colour of the room they go to.
+func nextRoomColor(ctx context.Context, q *sqlc.Queries, householdID, homeID string) (string, error) {
+	used, err := q.ListRoomColors(ctx, sqlc.ListRoomColorsParams{HouseholdID: householdID, HomeID: nullStr(homeID)})
+	if err != nil {
+		return "", err
+	}
+	n := map[string]int{}
+	for _, c := range used {
+		n[c.String]++
+	}
+	best := RoomColors[0]
+	for _, c := range RoomColors {
+		if n[c] < n[best] {
+			best = c
+		}
+	}
+	return best, nil
 }
 
 func derefInt(p *int64) int64 {
