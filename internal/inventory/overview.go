@@ -45,7 +45,7 @@ type NeedsRow struct {
 // NeedsGroup is one "needs a look" group. Count is the full number, Rows the
 // first few.
 type NeedsGroup struct {
-	Kind  string     `json:"kind"` // drafts | warranty_ending | unseen | failed_jobs
+	Kind  string     `json:"kind"` // drafts | warranty_ending | unseen | failed_jobs | not_found
 	Count int64      `json:"count"`
 	Rows  []NeedsRow `json:"rows"`
 }
@@ -160,6 +160,21 @@ func Overview(ctx context.Context, q sqlc.DBTX, householdID string) (OverviewRes
 		return out, err
 	}
 	if len(boxes) > 0 {
+		lostN, err := sq.OverviewNotFoundCount(ctx, householdID)
+		if err != nil {
+			return out, err
+		}
+		lost, err := sq.OverviewNotFound(ctx, sqlc.OverviewNotFoundParams{HouseholdID: householdID, Limit: overviewRows})
+		if err != nil {
+			return out, err
+		}
+		g = NeedsGroup{Kind: "not_found", Count: lostN, Rows: []NeedsRow{}}
+		for _, r := range lost {
+			g.Rows = append(g.Rows, itemRowOf(r.ID, r.Name, r.Category, sql.NullString{}, r.At))
+		}
+		if lostN > 0 {
+			out.NeedsLook = append(out.NeedsLook, g)
+		}
 		m := &OverviewMoving{ByStatus: map[string]int64{"empty": 0, "open": 0, "packed": 0, "arrived": 0, "unpacked": 0}, Rooms: []OverviewRoom{}}
 		rooms := map[string]*OverviewRoom{}
 		for _, b := range boxes {

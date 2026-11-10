@@ -8,7 +8,7 @@
   let { groups }: { groups: NeedsGroup[] } = $props()
   const shown = $derived(visibleGroups(groups))
 
-  const icons: Record<NeedsKind, IconName> = { drafts: 'sparkle', warranty_ending: 'receipt', unseen: 'clock', failed_jobs: 'refresh' }
+  const icons: Record<NeedsKind, IconName> = { drafts: 'sparkle', warranty_ending: 'receipt', unseen: 'clock', failed_jobs: 'refresh', not_found: 'search' }
 
   function detail(kind: NeedsKind, r: NeedsRow): string {
     switch (kind) {

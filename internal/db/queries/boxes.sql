@@ -55,3 +55,12 @@ RETURNING *;
 
 -- name: SetPackingBox :exec
 UPDATE memberships SET packing_box_id = ? WHERE household_id = ? AND user_id = ?;
+
+-- name: CountHomeContents :one
+-- Live items and contents lines left in a home (the old home may be archived when this is 0).
+SELECT CAST(
+  (SELECT COUNT(*) FROM items i JOIN places p ON p.id = i.place_id AND p.household_id = i.household_id
+    WHERE i.household_id = sqlc.arg(household_id) AND i.deleted_at IS NULL AND p.home_id = sqlc.arg(home_id))
++ (SELECT COUNT(*) FROM contents_lines l JOIN places p ON p.id = l.place_id AND p.household_id = l.household_id
+    WHERE l.household_id = sqlc.arg(household_id) AND l.deleted_at IS NULL AND p.home_id = sqlc.arg(home_id))
+AS INTEGER) AS n;

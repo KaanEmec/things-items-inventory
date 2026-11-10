@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ApiError } from '../api'
+  import { ApiError, api } from '../api'
   import Icon from '../Icon.svelte'
   import Field from '../ui/Field.svelte'
   import FormError from '../ui/FormError.svelte'
@@ -28,6 +28,10 @@
     ? coreFields(item)
     : { name: '', category: 'gadget', status: 'stored', brand: '', model: '', serial: '', color: '', quantity: '1', condition: '', notes: '', purchase_date: '', price: '', seller: '', warranty_end: '' }
   let v = $state<CoreFields>({ ...start })
+  // Prices are in the household currency unless the item already has one (J7.6).
+  let householdCurrency = $state('')
+  api.get<{ currency?: string }>('/api/v1/household').then((h) => (householdCurrency = h.currency ?? ''), () => {})
+  const currency = $derived(item?.purchase.currency || householdCurrency)
   /* svelte-ignore state_referenced_locally */
   let attrs = $state<Record<string, unknown>>(attrsToForm(item?.attributes ?? {}))
   /* svelte-ignore state_referenced_locally */
@@ -65,7 +69,10 @@
     if (changed('quantity')) out.quantity = Number.isInteger(Number(v.quantity)) && v.quantity.trim() !== '' ? Number(v.quantity) : v.quantity
     const purchase: Record<string, unknown> = {}
     if (changed('purchase_date') && (item || v.purchase_date)) purchase.date = blank(v.purchase_date)
-    if (changed('price') && (item || v.price.trim())) purchase.price_minor = toMinor(v.price)
+    if (changed('price') && (item || v.price.trim())) {
+      purchase.price_minor = toMinor(v.price)
+      if (currency && !item?.purchase.currency) purchase.currency = currency
+    }
     if (changed('seller') && (item || v.seller.trim())) purchase.seller = blank(v.seller)
     if (Object.keys(purchase).length) out.purchase = purchase
     if (changed('warranty_end') && (item || v.warranty_end)) out.warranty = { end: blank(v.warranty_end) }
@@ -165,7 +172,7 @@
     <legend class="mb-3 p-0 text-[11px] font-semibold tracking-[0.08em] text-label uppercase">Purchase and warranty</legend>
     <div class="grid gap-4 sm:grid-cols-2">
       <Field label="Bought on" type="date" bind:value={v.purchase_date} error={err('purchase_date', 'purchase.date')} />
-      <Field label="Price" bind:value={v.price} error={err('price_minor', 'purchase.price_minor')} inputmode="decimal" />
+      <Field label={currency ? `Price (${currency})` : 'Price'} bind:value={v.price} error={err('price_minor', 'purchase.price_minor')} inputmode="decimal" />
       <Field label="Seller" bind:value={v.seller} error={err('seller', 'purchase.seller')} />
       <Field label="Warranty until" type="date" bind:value={v.warranty_end} error={err('warranty_end', 'warranty.end')} />
     </div>

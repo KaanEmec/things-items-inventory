@@ -5,6 +5,7 @@ import { explain } from '../errors'
 import { categoryLabel, humanize, valueLabel } from '../inventory/categories'
 import { createItem, deleteItem, patchItem, restoreItem } from '../inventory/items'
 import { searchPlaces } from '../inventory/places'
+import { mergeInto } from './duplicates'
 import type { Attribute, Catalog, Category, Item, PlaceShort } from '../inventory/types'
 
 export type SaveState = 'new' | 'saving' | 'saved' | 'failed'
@@ -34,6 +35,8 @@ export interface Row {
   ai: string[]
   /** Ghost text by column key; only ever shown in empty cells. */
   suggestions: Record<string, string>
+  /** Extra create fields without a column (purchase details from pasted text). */
+  extra?: Record<string, unknown>
 }
 
 export interface SheetApi {
@@ -268,6 +271,15 @@ export class Sheet {
     }
   }
 
+  /** The place new rows go to. A box means packed; leaving a box sets stored again (J7.6). */
+  setPlaceDefault(p: PlaceShort | null) {
+    if (p) this.addPlace(p)
+    const has = (st: string) => this.catalog.statuses.includes(st)
+    const wasBox = this.places[this.defaults.place]?.kind === 'box'
+    const status = p?.kind === 'box' ? (has('packed') ? 'packed' : undefined) : wasBox && this.defaults.status === 'packed' && has('stored') ? 'stored' : undefined
+    this.setDefaults({ place: p?.id ?? '', ...(status ? { status } : {}) })
+  }
+
   addPlace(p: PlaceShort) {
     this.places = { ...this.places, [p.id]: p }
   }
@@ -310,12 +322,23 @@ export class Sheet {
     const before = row.values[key] ?? ''
     const wasAi = row.ai.includes(key)
     if (key === 'name' && value.trim() === '' && row.created) return false // a saved item keeps its name
+    if (key === 'name' && before === '' && value !== '') this.#carryOver(row)
     if (!this.#setRaw(row, key, value)) return false
     row.ai = row.ai.filter((k) => k !== key)
     delete row.suggestions[key]
     if (key === 'category') this.#pickedCat.add(row.id)
     changes?.push({ rowId: row.id, key, before, after: value, beforeAi: wasAi })
     return true
+  }
+
+  /** A new row takes the category and status of the named row above it (J7.6). */
+  #carryOver(row: Row) {
+    if (row.created) return
+    const i = this.rowIndex(row.id)
+    const prev = this.rows.slice(0, i < 0 ? this.rows.length : i).reverse().find((r) => (r.values.name ?? '').trim())
+    if (!prev) return
+    if (row.values.category === this.category && !this.#pickedCat.has(row.id) && prev.values.category) this.#setRaw(row, 'category', prev.values.category)
+    if (row.values.status === this.defaults.status && prev.values.status) this.#setRaw(row, 'status', prev.values.status)
   }
 
   #touchSave(row: Row) {
@@ -355,6 +378,88 @@ export class Sheet {
       const attr = cat?.attributes.find((x) => x.key === a)
       if (!attr || !this.#fits(attr, row.values[k])) this.#setRaw(row, k, '')
     }
+  }
+
+  // ---- list use (phone quick add, pasted text) -----------------------------
+
+  /** Phone: type a name, get a saved draft row. Returns the row id. */
+  addTyped(name: string): string | null {
+    const n = name.replace(/\s+/g, ' ').trim()
+    if (!n) return null
+    const row = this.#blankRow()
+    row.values.name = n
+    this.#carryOver(row)
+    this.#push(row)
+    this.#askSuggest(row)
+    void this.#flush(row)
+    return row.id
+  }
+
+  /** Put a row before the trailing empty one (or replace it) and keep one empty row at the end. */
+  #push(row: Row) {
+    const last = this.rows[this.rows.length - 1]
+    if (last && !last.created && !this.#touched(last) && !(last.values.name ?? '').trim()) this.rows.splice(this.rows.length - 1, 0, row)
+    else this.rows.push(row)
+    this.#ensureBlank()
+  }
+
+  /** Rows that have a name: what the phone list shows. */
+  get named(): Row[] {
+    return this.rows.filter((r) => (r.values.name ?? '').trim())
+  }
+
+  /** A person changes one cell of a row by id (stepper, chip edit). */
+  setValue(rowId: string, key: string, value: string) {
+    const row = this.rows.find((r) => r.id === rowId)
+    if (!row) return
+    const changes: Change[] = []
+    if (this.#personSet(row, key, value.replace(/\r?\n/g, ' ').trim(), changes)) {
+      this.#afterCategoryEdit(row, key)
+      this.#pushUndo({ kind: 'cells', changes })
+      this.#touchSave(row)
+    }
+  }
+
+  /** Take suggestions of one row (all of them without `keys`). */
+  accept(rowId: string, keys?: string[]): boolean {
+    const i = this.rowIndex(rowId)
+    return i >= 0 && this.#accept(i, keys ?? Object.keys(this.rows[i].suggestions))
+  }
+
+  /** Delete a row by id; undo brings it back. */
+  deleteById(rowId: string): boolean {
+    return this.deleteRow(this.rowIndex(rowId))
+  }
+
+  /** Rows from pasted or described text (J7.3), saved as drafts. Fields read by the AI are marked. */
+  addRows(list: { values: Record<string, string>; ai?: boolean; place?: string | null; extra?: Record<string, unknown> }[]) {
+    for (const it of list) {
+      const row = this.#blankRow()
+      for (const [k, v] of Object.entries(it.values)) {
+        if (v === '' || v == null) continue
+        if (k === 'category' && !this.#cat(v)) continue
+        const a = attrKey(k)
+        if (a && !this.#cat(it.values.category || row.values.category)?.attributes.some((x) => x.key === a)) continue
+        row.values[k] = v
+        if (it.ai && k !== 'name' && k !== 'quantity') row.ai.push(k)
+      }
+      if (it.place) row.values.place = it.place
+      if (it.extra && Object.keys(it.extra).length) row.extra = it.extra
+      if (!(row.values.name ?? '').trim()) continue
+      if (it.values.category) this.#pickedCat.add(row.id)
+      this.#push(row)
+      void this.#flush(row)
+    }
+  }
+
+  /** J7.6 "Same thing" / "Add to quantity": fold this new row into an item that already exists, then drop the row. */
+  async resolveDuplicate(rowId: string, kind: 'same' | 'add', existingId: string): Promise<void> {
+    const row = this.rows.find((r) => r.id === rowId)
+    if (!row) return
+    await this.#queue.get(rowId)
+    await mergeInto(existingId, { id: row.id, place: row.values.place || null, quantity: Number(row.values.quantity) || 1 }, kind)
+    this.#removeRow(row.id, false)
+    if (!this.rows.length) this.rows.push(this.#blankRow())
   }
 
   // ---- cursor and selection ------------------------------------------------
@@ -848,7 +953,7 @@ export class Sheet {
     row.state = 'saving'
     row.error = ''
     try {
-      const item = create ? await this.api.create({ id: row.id, draft: true, ...body }) : await this.api.patch(row.id, body)
+      const item = create ? await this.api.create({ id: row.id, draft: true, ...row.extra, ...body }) : await this.api.patch(row.id, body)
       // Only acknowledge what was sent; newer edits of the same cell stay dirty and win.
       const acked = this.#acked.get(row.id) ?? {}
       for (const k of create ? Object.keys(snapshot) : keys) acked[k] = snapshot[k] ?? 0

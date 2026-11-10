@@ -93,7 +93,7 @@ func TestOverviewCountsMatchLists(t *testing.T) {
 			t.Errorf("%s: overview %d, list %d", name, o.Counts[name], got)
 		}
 	}
-	want := map[string]int64{"drafts": 1, "warranty_ending": e.listCount("warranty=ending"), "unseen": 1, "failed_jobs": 1}
+	want := map[string]int64{"drafts": 1, "warranty_ending": e.listCount("warranty=ending"), "unseen": 1, "failed_jobs": 1, "not_found": 2}
 	for _, g := range o.NeedsLook {
 		if g.Count != want[g.Kind] || int64(len(g.Rows)) != g.Count {
 			t.Errorf("group %s: count %d rows %d, want %d", g.Kind, g.Count, len(g.Rows), want[g.Kind])

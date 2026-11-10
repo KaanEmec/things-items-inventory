@@ -23,6 +23,8 @@ func Subscribe() {
 // refreshed (a rename or move changes every path below).
 func onChange(ctx context.Context, tx *sql.Tx, c inventory.Change) error {
 	switch {
+	case c.Kind == "settings_changed" && c.Subject == "home":
+		return IndexHome(ctx, tx, c.HouseholdID)
 	case c.ItemID != "":
 		return IndexItem(ctx, tx, c.HouseholdID, c.ItemID)
 	case c.PlaceID != "":

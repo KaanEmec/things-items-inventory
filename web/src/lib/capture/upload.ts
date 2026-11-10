@@ -22,6 +22,10 @@ export function buildForm(e: QueueEntry): FormData {
 }
 
 export async function uploadEntry(e: QueueEntry): Promise<void> {
+  if (e.line) {
+    await api.post('/api/v1/items', { source: 'manual', draft: true, ...e.line, id: e.groupId })
+    return
+  }
   if (!e.blob) throw new Error('Photo data is missing.')
   await api.upload('/api/v1/photos', buildForm(e))
 }

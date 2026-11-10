@@ -4,17 +4,31 @@
   import PlaceDialog from '../inventory/PlaceDialog.svelte'
   import FlowFrame from '../shell/FlowFrame.svelte'
   import Button from '../ui/Button.svelte'
+  import EmptyState from '../ui/EmptyState.svelte'
   import Dialog from '../ui/Dialog.svelte'
   import { showToast } from '../ui/toasts.svelte'
+  import ContentsReview from '../drafts/ContentsReview.svelte'
+  import type { PlaceShort } from '../inventory/types'
   import DraftFormSlot from './DraftFormSlot.svelte'
   import { prepare } from './input'
   import { groupState, roleLabel, stateClass, stateLabel } from './labels'
   import Picker from './Picker.svelte'
   import { captureQueue as queue, type QueueEntry, type Role } from './queue.svelte'
+  import PackingBar from '../moving/PackingBar.svelte'
+  import { boxPlace, packing } from '../moving/packing.svelte'
   import { CaptureSession } from './session.svelte'
   import Thumb from './Thumb.svelte'
+  import { ulid } from './ulid'
 
   const session = new CaptureSession(queue, auth.householdId)
+
+  // With a "packing now" box set, everything captured goes into it.
+  $effect(() => {
+    if (!packing.loaded) packing.load().catch(() => {})
+  })
+  $effect(() => {
+    if (packing.box) session.setPlace(boxPlace(packing.box))
+  })
 
   let picker: Picker
   let placeOpen = $state(false)
@@ -87,14 +101,28 @@
       void receive(files)
     }
   }
+  // Box contents: photos of an open container; the AI lists what it sees and the person reviews the lines.
+  let contentsOpen = $state(false)
+  let contentsPlaceOpen = $state(false)
+  let contentsPlace = $state.raw<PlaceShort | null>(null)
+  const contentsUploaded = $derived(!!contentsPlace && queue.entries.some((e) => e.role === 'contents' && e.placeId === contentsPlace!.id && e.state === 'uploaded'))
+  async function addContents(files: File[]) {
+    if (!contentsPlace) return
+    const { blobs, errors } = await prepare(files)
+    if (errors.length) showToast(errors[0], 'error')
+    const groupId = ulid()
+    for (const blob of blobs) await queue.add({ groupId, role: 'contents', placeId: contentsPlace.id, blob })
+  }
   const roles: Role[] = ['item', 'label', 'receipt']
 </script>
 
 <svelte:window {onpaste} />
 
 <FlowFrame icon="camera" title="Capture" breadcrumb={['Add things']}>
+  <PackingBar />
   {#snippet actions()}
     <Button icon="pin" onclick={() => (placeOpen = true)}>{session.place ? session.place.name : 'Choose place'}</Button>
+    <Button icon="package" onclick={() => (contentsOpen = true)}>Box contents</Button>
     <Button variant="primary" icon="image" onclick={() => picker.openLibrary('queue')}>Choose photos</Button>
   {/snippet}
 
@@ -140,7 +168,7 @@
             </button>
           </li>
         {:else}
-          <li class="px-4 py-3 text-[13px] text-muted">Nothing captured yet.</li>
+          <li><EmptyState compact icon="camera" title="Nothing captured yet" message="Take or drop photos and they appear here for review." /></li>
         {/each}
       </ul>
     </section>
@@ -204,7 +232,7 @@
   </div>
 </FlowFrame>
 
-<Picker bind:this={picker} onfiles={(f, tag) => (tag === 'add' ? addToSelected(f) : receive(f))} />
+<Picker bind:this={picker} onfiles={(f, tag) => (tag === 'add' ? addToSelected(f) : tag === 'contents' ? addContents(f) : receive(f))} />
 <PlaceDialog bind:open={placeOpen} title="Where do new items go?" value={session.place} allowNone onpick={(p) => session.setPlace(p)} />
 
 <Dialog bind:open={askOpen} title="{asking?.length ?? 0} photos">
@@ -213,4 +241,20 @@
     <Button onclick={() => asking && add(asking, true)}>One per photo</Button>
     <Button variant="primary" onclick={() => asking && add(asking, false)}>One item</Button>
   {/snippet}
+</Dialog>
+
+<PlaceDialog bind:open={contentsPlaceOpen} title="Which container?" value={contentsPlace} onpick={(p) => (contentsPlace = p)} />
+<Dialog bind:open={contentsOpen} title="Box contents" size="lg">
+  <div class="flex flex-col gap-3">
+    <div class="flex flex-wrap items-center gap-2">
+      <Button icon="pin" onclick={() => (contentsPlaceOpen = true)}>{contentsPlace ? contentsPlace.name : 'Choose container'}</Button>
+      <Button icon="image" disabled={!contentsPlace} onclick={() => picker.openLibrary('contents')}>Add photos of it open</Button>
+      {#if queue.pending}<span class="text-[12px] text-muted" role="status">Uploading</span>{/if}
+    </div>
+    {#if contentsPlace && contentsUploaded}
+      <ContentsReview placeId={contentsPlace.id} />
+    {:else}
+      <p class="m-0 text-[13px] text-muted">Choose the container, then add photos of it open. The AI lists what it sees.</p>
+    {/if}
+  </div>
 </Dialog>

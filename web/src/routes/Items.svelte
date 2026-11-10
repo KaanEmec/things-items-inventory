@@ -27,6 +27,8 @@
   import PanelFooter from '../lib/shell/PanelFooter.svelte'
   import Toolbar from '../lib/shell/Toolbar.svelte'
   import Button from '../lib/ui/Button.svelte'
+  import EmptyState from '../lib/ui/EmptyState.svelte'
+  import Skeleton from '../lib/ui/Skeleton.svelte'
   import Dialog from '../lib/ui/Dialog.svelte'
   import FormError from '../lib/ui/FormError.svelte'
   import Popover from '../lib/ui/Popover.svelte'
@@ -205,27 +207,19 @@
 
 {#snippet listPane()}
   {#if catalogError || list.error}
-    <div class="p-4 md:px-6">
-      <FormError message={catalogError || list.error} />
-      <Button class="mt-3" icon="refresh" onclick={() => list.reset(list.query)}>Try again</Button>
-    </div>
+    <EmptyState tone="error" title="Items could not load" message={catalogError || list.error} onretry={() => list.reset(list.query)} />
   {:else if list.loaded && !list.items.length && !list.loading}
-    <div class="flex flex-1 flex-col items-center justify-center gap-3 px-6 py-12 text-center">
-      <span class="flex size-12 items-center justify-center rounded-tile bg-accent-soft text-accent"><Icon name="tag" size={22} /></span>
-      {#if filtered}
-        <h2 class="m-0 text-[17px] font-bold">Nothing matches</h2>
-        <p class="m-0 max-w-[34ch] text-[14px] text-muted">No item fits these filters. Change them or start again.</p>
+    {#if filtered}
+      <EmptyState title="Nothing matches" message="No item fits these filters. Change them or start again.">
         <Button onclick={clearFilters}>Clear filters</Button>
-      {:else}
-        <h2 class="m-0 text-[17px] font-bold">No items yet</h2>
-        <p class="m-0 max-w-[40ch] text-[14px] text-muted">Start with a photo: Capture reads it and fills in the details. You can also type a list in Quick add, or add one item by hand.</p>
-        <div class="flex flex-wrap justify-center gap-2">
-          <Button variant="primary" icon="camera" href="/capture">Capture</Button>
-          <Button icon="table" href="/quick-add">Quick add</Button>
-          {#if canWrite}<Button icon="plus" onclick={() => (newOpen = true)} disabled={!catalog}>New item</Button>{/if}
-        </div>
-      {/if}
-    </div>
+      </EmptyState>
+    {:else}
+      <EmptyState title="No items yet" message="Start with a photo: Capture reads it and fills in the details. You can also type a list in Quick add, or add one item by hand.">
+        <Button variant="primary" icon="camera" href="/capture">Capture</Button>
+        <Button icon="table" href="/quick-add">Quick add</Button>
+        {#if canWrite}<Button icon="plus" onclick={() => (newOpen = true)} disabled={!catalog}>New item</Button>{/if}
+      </EmptyState>
+    {/if}
   {:else}
     <div
       bind:this={scroller}
@@ -241,7 +235,7 @@
           </div>
         {/each}
       </div>
-      {#if list.loading}<p class="m-0 px-6 py-3 text-[13px] text-muted">Loading</p>{/if}
+      {#if list.loading}<Skeleton rows={list.items.length ? 1 : 6} />{/if}
     </div>
   {/if}
 {/snippet}

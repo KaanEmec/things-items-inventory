@@ -21,6 +21,7 @@ import (
 func (s *Service) Routes(mux *httpapi.Mux) {
 	mux.HandleFunc("POST /api/v1/items/{id}/ai", auth.RequireSession(auth.ActionInventoryWrite, s.readOne))
 	mux.HandleFunc("POST /api/v1/items/ai/read-waiting", auth.RequireSession(auth.ActionInventoryWrite, s.readWaiting))
+	s.readerRoutes(mux)
 }
 
 // aiReady is nil when a run can be queued, else a 409 whose fields say why:
@@ -172,7 +173,15 @@ func (s *Service) Seed(ctx context.Context, d *db.DB, hid string) (pathValues, m
 		if err != nil {
 			return err
 		}
-		pathValues, markers = []string{item.ID}, []string{"Secret-Draft-8R"}
+		h, err := inventory.CreateHome(ctx, tx, hid, "Secret-Home-8R", "")
+		if err != nil {
+			return err
+		}
+		place, err := inventory.CreatePlace(ctx, tx, hid, inventory.PlaceInput{HomeID: h.ID, Kind: "room", Name: "Secret-Room-8R"})
+		if err != nil {
+			return err
+		}
+		pathValues, markers = []string{item.ID, place.ID}, []string{"Secret-Draft-8R"}
 		return nil
 	})
 	return pathValues, markers, err

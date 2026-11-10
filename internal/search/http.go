@@ -45,6 +45,30 @@ func New(d *db.DB) *Service {
 // (comma list of items,lines,places,boxes).
 func (s *Service) Routes(mux *httpapi.Mux) {
 	mux.HandleFunc("GET /api/v1/search", auth.Require(auth.ActionInventoryRead, s.get))
+	mux.HandleFunc("GET /api/v1/search/similar", auth.Require(auth.ActionInventoryRead, s.similar))
+}
+
+// similar answers GET /api/v1/search/similar?brand=&model=&name=&exclude=id,id
+// with {"items": [<match>]}: live items of the household that look like the
+// one being added (same brand and model, or a distinctive close name). Each
+// match has why = brand_model | name. Generic names match nothing.
+func (s *Service) similar(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	var exclude []string
+	for _, id := range strings.Split(q.Get("exclude"), ",") {
+		if id = strings.TrimSpace(id); id != "" {
+			exclude = append(exclude, id)
+		}
+	}
+	out, err := Similar(r.Context(), s.db.Read, auth.HouseholdID(r.Context()), q.Get("brand"), q.Get("model"), q.Get("name"), exclude...)
+	if err != nil {
+		httpapi.WriteError(w, err)
+		return
+	}
+	if out == nil {
+		out = []Match{}
+	}
+	httpapi.WriteJSON(w, http.StatusOK, map[string]any{"items": out})
 }
 
 var kindByGroup = map[string]string{"items": KindItem, "lines": KindLine, "places": KindPlace, "boxes": KindBox}

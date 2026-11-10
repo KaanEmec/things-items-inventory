@@ -15,6 +15,7 @@ import (
 	"github.com/kaanemec/things-items-inventory/internal/db/sqlc"
 	"github.com/kaanemec/things-items-inventory/internal/httpapi"
 	"github.com/kaanemec/things-items-inventory/internal/id"
+	"github.com/kaanemec/things-items-inventory/internal/inventory"
 )
 
 // Routes registers the /settings/ai endpoints.
@@ -183,7 +184,7 @@ func (s *Service) put(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	hid, uid := auth.HouseholdID(ctx), auth.UserID(ctx)
 	var saved sqlc.AiProfile
-	err = s.d.Tx(ctx, func(tx *sql.Tx) error {
+	err = inventory.InTx(ctx, s.d, func(tx *sql.Tx) error {
 		q := sqlc.New(tx)
 		old, err := q.GetAIProfile(ctx, sqlc.GetAIProfileParams{HouseholdID: hid, Role: string(role)})
 		exists := err == nil
@@ -222,6 +223,30 @@ func (s *Service) put(w http.ResponseWriter, r *http.Request) {
 		if saved, err = q.UpsertAIProfile(ctx, p); err != nil {
 			return err
 		}
+		// The event lists what changed, never the token itself.
+		before, after := map[string]any{"role": string(role)}, map[string]any{"role": string(role)}
+		diff := func(k string, o, n any) {
+			if !exists || o != n {
+				before[k], after[k] = o, n
+			}
+		}
+		if exists {
+			diff("base_url", old.BaseUrl, p.BaseUrl)
+			diff("model", old.Model.String, p.Model.String)
+			diff("same_as_vision", old.SameAsVision != 0, p.SameAsVision != 0)
+		} else {
+			before["base_url"], after["base_url"] = nil, p.BaseUrl
+			before["model"], after["model"] = nil, p.Model.String
+		}
+		if body.Token != nil {
+			after["token_changed"] = true
+		}
+		if len(after) > 1 {
+			if err := inventory.RecordEvent(ctx, tx, inventory.EventInput{HouseholdID: hid, UserID: uid,
+				Kind: "settings_changed", Subject: "ai", Before: before, After: after}); err != nil {
+				return err
+			}
+		}
 		// A different endpoint, model or token invalidates the last test.
 		if !exists || body.Token != nil || p.BaseUrl != old.BaseUrl || p.Model != old.Model {
 			return q.ClearAITest(ctx, sqlc.ClearAITestParams{HouseholdID: hid, Role: string(role)})
@@ -245,8 +270,17 @@ func (s *Service) delete(w http.ResponseWriter, r *http.Request) {
 		httpapi.WriteError(w, err)
 		return
 	}
-	hid := auth.HouseholdID(r.Context())
-	n, err := sqlc.New(s.d.Write).DeleteAIProfile(r.Context(), sqlc.DeleteAIProfileParams{HouseholdID: hid, Role: string(role)})
+	ctx := r.Context()
+	hid, uid := auth.HouseholdID(ctx), auth.UserID(ctx)
+	var n int64
+	err = inventory.InTx(ctx, s.d, func(tx *sql.Tx) error {
+		var err error
+		if n, err = sqlc.New(tx).DeleteAIProfile(ctx, sqlc.DeleteAIProfileParams{HouseholdID: hid, Role: string(role)}); err != nil || n == 0 {
+			return err
+		}
+		return inventory.RecordEvent(ctx, tx, inventory.EventInput{HouseholdID: hid, UserID: uid, Kind: "settings_changed", Subject: "ai",
+			Before: map[string]any{"role": string(role)}, After: map[string]any{"role": string(role), "cleared": true}})
+	})
 	if err != nil {
 		httpapi.WriteError(w, err)
 		return

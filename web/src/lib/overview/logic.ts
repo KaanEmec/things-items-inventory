@@ -94,7 +94,7 @@ export interface Cell {
 export function stripCells(c: Counts): Cell[] {
   return [
     { key: 'all', label: 'All items', value: c.all, href: '/items' },
-    { key: 'drafts', label: 'Drafts', value: c.drafts, href: '/items?draft=1' },
+    { key: 'drafts', label: 'Drafts', value: c.drafts, href: '/drafts' },
     { key: 'packed', label: 'Packed', value: c.packed, href: '/items?status=packed' },
     { key: 'to_sell', label: 'To sell / donate', value: c.to_sell, href: '/items?status=to_sell' },
     { key: 'in_warranty', label: 'In warranty', value: c.in_warranty, href: '/items?warranty=active' },
@@ -103,9 +103,10 @@ export function stripCells(c: Counts): Cell[] {
 
 /** Title and "see all" link of a needs-a-look group. */
 export const groupMeta: Record<NeedsKind, { title: (n: number) => string; href?: string }> = {
-  drafts: { title: (n) => `${n} ${n === 1 ? 'draft waits' : 'drafts wait'} for review`, href: '/items?draft=1' },
+  drafts: { title: (n) => `${n} ${n === 1 ? 'draft waits' : 'drafts wait'} for review`, href: '/drafts' },
   warranty_ending: { title: (n) => `${n} ${n === 1 ? 'warranty ends' : 'warranties end'} within 60 days`, href: '/items?warranty=ending' },
   unseen: { title: (n) => `${n} daily-use ${n === 1 ? 'item' : 'items'} not seen for 6 months` },
+  not_found: { title: (n) => `${n} ${n === 1 ? 'thing was' : 'things were'} not found when unpacking` , href: '/items' },
   failed_jobs: { title: (n) => `${n} AI ${n === 1 ? 'job' : 'jobs'} failed`, href: '/settings/ai' },
 }
 

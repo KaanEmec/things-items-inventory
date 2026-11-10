@@ -15,7 +15,8 @@
   import Panel from '../lib/shell/Panel.svelte'
   import SectionBar from '../lib/shell/SectionBar.svelte'
   import Button from '../lib/ui/Button.svelte'
-  import FormError from '../lib/ui/FormError.svelte'
+  import EmptyState from '../lib/ui/EmptyState.svelte'
+  import Skeleton from '../lib/ui/Skeleton.svelte'
 
   let data = $state<Overview | null>(null)
   let error = $state('')
@@ -51,12 +52,9 @@
     </div>
 
     {#if error}
-      <div class="bg-surface p-4 md:px-6">
-        <FormError message={error} />
-        <Button class="mt-3" icon="refresh" onclick={load}>Try again</Button>
-      </div>
+      <div class="bg-surface"><EmptyState tone="error" title="The overview could not load" message={error} onretry={load} /></div>
     {:else if !data}
-      <p class="m-0 bg-surface px-4 py-6 text-[14px] text-muted md:px-6">Loading</p>
+      <div class="bg-surface"><Skeleton rows={6} /></div>
     {:else if firstDay}
       <FirstDay {canWrite} hasPlaces={data.places > 0} />
     {:else}

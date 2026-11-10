@@ -75,7 +75,6 @@ func (s *Service) AddAuthenticator(a Authenticator) { s.authenticator = append(s
 
 // Routes registers the middleware and every endpoint of this package.
 func (s *Service) Routes(mux *httpapi.Mux) {
-	mux.Use(s.csrf)
 	mux.Use(s.authenticate)
 
 	mux.HandleFunc("GET /api/v1/setup", s.getSetup)
@@ -161,21 +160,15 @@ func (s *Service) clientAddr(r *http.Request) string {
 	return host
 }
 
-// csrf rejects requests that change data and came from another site. It
-// covers every non-bearer unsafe request, including login, so a hostile page
-// can not sign someone in to an attacker's account either.
-func (s *Service) csrf(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case http.MethodGet, http.MethodHead, http.MethodOptions:
-		default:
-			if !strings.HasPrefix(r.Header.Get("Authorization"), "Bearer ") && crossSite(r) {
-				httpapi.WriteError(w, httpapi.NewError(httpapi.CodeForbidden, "This request came from another site and was blocked."))
-				return
-			}
-		}
-		next.ServeHTTP(w, r)
-	})
+// unsafeCrossSite reports a data-changing request that came from another
+// site. It applies to every request a token did not authenticate, including
+// login, so a hostile page can not sign someone in to an attacker's account.
+func unsafeCrossSite(r *http.Request) bool {
+	switch r.Method {
+	case http.MethodGet, http.MethodHead, http.MethodOptions:
+		return false
+	}
+	return crossSite(r)
 }
 
 func crossSite(r *http.Request) bool {
@@ -212,8 +205,16 @@ func (s *Service) authenticate(next http.Handler) http.Handler {
 				return
 			}
 		}
-		if id, ok := s.sessionIdentity(w, r); ok {
-			r = r.WithContext(WithIdentity(r.Context(), id))
+		if unsafeCrossSite(r) {
+			httpapi.WriteError(w, httpapi.NewError(httpapi.CodeForbidden, "This request came from another site and was blocked."))
+			return
+		}
+		// A request that sends an Authorization header is token-or-nothing:
+		// a bad token never falls back to the session cookie.
+		if r.Header.Get("Authorization") == "" {
+			if id, ok := s.sessionIdentity(w, r); ok {
+				r = r.WithContext(WithIdentity(r.Context(), id))
+			}
 		}
 		next.ServeHTTP(w, r)
 	})

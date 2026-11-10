@@ -60,6 +60,17 @@ func boxWriteCases() []writeCase {
 			_, err := inventory.CloseBox(ctx, tx, hid, uid, box)
 			return err
 		}},
+		{fn: "BulkBoxes", kind: "edited", prep: prep, run: func(ctx context.Context, tx *sql.Tx, f *fx, hid, uid string) error {
+			_, err := inventory.BulkBoxes(ctx, tx, hid, uid, []string{box}, inventory.BoxChange{Note: inventory.Optional[string]{Set: true, V: "x"}})
+			return err
+		}},
+		{fn: "UnpackBox", kind: "unpacked", prep: func(f *fx) {
+			prep(f)
+			f.e.must(http.StatusOK, "POST", "/api/v1/boxes/"+box+"/close", `{}`, nil)
+		}, run: func(ctx context.Context, tx *sql.Tx, f *fx, hid, uid string) error {
+			_, err := inventory.UnpackBox(ctx, tx, hid, uid, box, nil, nil)
+			return err
+		}},
 		{fn: "SetPackingBox", kind: "", prep: prep, run: func(ctx context.Context, tx *sql.Tx, f *fx, hid, uid string) error {
 			return inventory.SetPackingBox(ctx, tx, hid, uid, box, nil)
 		}},

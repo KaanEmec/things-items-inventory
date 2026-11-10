@@ -4,6 +4,7 @@
   import { canFireShortcut, dialogIsOpen, isPaletteKey } from '../search/guard'
   import Palette from '../search/Palette.svelte'
   import { palette } from '../search/state.svelte'
+  import ConnectionBanner from './ConnectionBanner.svelte'
   import SideNav from './SideNav.svelte'
   import TabBar from './TabBar.svelte'
 
@@ -27,10 +28,13 @@
 
 <!-- Desktop: tinted chrome with side nav; the page supplies the one white Panel.
      Phone: the Panel fills the screen above the tab bar. -->
-<div class="flex h-dvh flex-col bg-phone-bg md:flex-row md:bg-chrome">
-  <SideNav />
-  {@render children()}
-  <TabBar />
+<div class="flex h-dvh flex-col bg-phone-bg md:bg-chrome">
+  <ConnectionBanner />
+  <div class="flex min-h-0 flex-1 flex-col md:flex-row">
+    <SideNav />
+    {@render children()}
+    <TabBar />
+  </div>
 </div>
 
 <Palette />

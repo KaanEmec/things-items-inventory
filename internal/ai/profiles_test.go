@@ -435,3 +435,50 @@ func TestNormalizeBaseURL(t *testing.T) {
 		}
 	}
 }
+
+func TestProfileChangesWriteEventsWithoutToken(t *testing.T) {
+	e := newEnv(t, config.Config{})
+	owner := e.session(e.hid, "owner")
+	if c, b := put(e, owner, "vision", `{"model":"m1","token":"tok-secret-7777"}`); c != 200 {
+		t.Fatal(c, b)
+	}
+	put(e, owner, "vision", `{"model":"m2"}`)
+	e.do(owner, "DELETE", "/api/v1/settings/ai/vision", "")
+	rows, err := e.d.Read.Query(`SELECT kind, actor_kind, user_id, data FROM events WHERE household_id = ? ORDER BY at, id`, e.hid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	var datas []string
+	for rows.Next() {
+		var kind, actor, uid, data string
+		if err := rows.Scan(&kind, &actor, &uid, &data); err != nil {
+			t.Fatal(err)
+		}
+		if kind != "settings_changed" || actor != "user" || uid == "" {
+			t.Fatalf("event %s %s %s", kind, actor, uid)
+		}
+		datas = append(datas, data)
+	}
+	if len(datas) != 3 {
+		t.Fatalf("%d events: %v", len(datas), datas)
+	}
+	all := strings.Join(datas, "\n")
+	for _, bad := range []string{"tok-secret-7777", "7777"} {
+		if strings.Contains(all, bad) {
+			t.Fatalf("token leaked into events: %s", all)
+		}
+	}
+	if !strings.Contains(datas[0], `"token_changed":true`) || !strings.Contains(datas[1], `"m2"`) || !strings.Contains(datas[2], `"cleared":true`) {
+		t.Fatalf("unexpected data: %s", all)
+	}
+	// A no-op save writes nothing.
+	put(e, owner, "vision", `{"model":"m3"}`)
+	n := len(datas)
+	put(e, owner, "vision", `{"model":"m3"}`)
+	var cnt int
+	e.d.Read.QueryRow(`SELECT count(*) FROM events WHERE household_id = ?`, e.hid).Scan(&cnt)
+	if cnt != n+1 {
+		t.Fatalf("events %d, want %d", cnt, n+1)
+	}
+}

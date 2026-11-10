@@ -334,12 +334,25 @@ func UpdateHome(ctx context.Context, tx *sql.Tx, householdID, homeID string, nam
 	if archived != nil {
 		switch {
 		case *archived && !a.Valid:
+			left, err := q.CountHomeContents(ctx, sqlc.CountHomeContentsParams{HouseholdID: householdID, HomeID: nullStr(homeID)})
+			if err != nil {
+				return h, err
+			}
+			if left > 0 {
+				return h, httpapi.Conflict(fmt.Sprintf("%d things are still in this home. Unpack or move them first.", left))
+			}
 			a = nullStr(now())
 		case !*archived:
 			a = sql.NullString{}
 		}
 	}
-	return q.UpdateHome(ctx, sqlc.UpdateHomeParams{Name: n, Sort: s, ArchivedAt: a, UpdatedAt: now(), HouseholdID: householdID, ID: homeID})
+	saved, err := q.UpdateHome(ctx, sqlc.UpdateHomeParams{Name: n, Sort: s, ArchivedAt: a, UpdatedAt: now(), HouseholdID: householdID, ID: homeID})
+	if err != nil || h.ArchivedAt.Valid == saved.ArchivedAt.Valid {
+		return saved, err
+	}
+	// Archiving or restoring changes what search shows: the index hears of it as a household event.
+	return saved, RecordEvent(ctx, tx, EventInput{HouseholdID: householdID, Kind: "settings_changed", Subject: "home",
+		Before: map[string]any{"archived": h.ArchivedAt.Valid}, After: map[string]any{"archived": saved.ArchivedAt.Valid}})
 }
 
 // SeedStarter creates the first-run home with a few common rooms. Call it in

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { untrack } from 'svelte'
   import { MediaQuery } from 'svelte/reactivity'
+  import { api } from '../lib/api'
   import { activeHousehold, can } from '../lib/auth.svelte'
   import { explain } from '../lib/errors'
   import Icon from '../lib/Icon.svelte'
@@ -8,6 +9,7 @@
   import { bulkItems } from '../lib/inventory/items'
   import ItemDetail from '../lib/inventory/ItemDetail.svelte'
   import { ItemList } from '../lib/inventory/list.svelte'
+  import InBoxes from '../lib/moving/InBoxes.svelte'
   import PlaceDialog from '../lib/inventory/PlaceDialog.svelte'
   import { cachedPlacePhoto, getPlace, patchLine, uploadPlacePhoto, type PlaceKind } from '../lib/inventory/places'
   import { toJpeg } from '../lib/inventory/photos'
@@ -31,6 +33,8 @@
   import SectionBar from '../lib/shell/SectionBar.svelte'
   import Toolbar from '../lib/shell/Toolbar.svelte'
   import Button from '../lib/ui/Button.svelte'
+  import EmptyState from '../lib/ui/EmptyState.svelte'
+  import Skeleton from '../lib/ui/Skeleton.svelte'
   import Dialog from '../lib/ui/Dialog.svelte'
   import Field from '../lib/ui/Field.svelte'
   import Popover from '../lib/ui/Popover.svelte'
@@ -236,6 +240,36 @@
 
   // ---- phone more menu ----
   let moreOpen = $state(false)
+  let newHomeOpen = $state(false)
+  let newHomeName = $state('New home')
+  let copyRooms = $state(true)
+  async function createHome() {
+    const name = newHomeName.trim()
+    if (!name) return
+    newHomeOpen = false
+    try {
+      const h = await api.post<{ id: string }>('/api/v1/homes', { name, ...(copyRooms && store.homeId ? { copy_rooms_from: store.homeId } : {}) })
+      inBoxesView = false
+      await store.init(null)
+      await store.switchHome(h.id)
+      navigate('/places', true)
+    } catch (e) {
+      showToast(explain(e).message, 'error')
+    }
+  }
+  /** "In boxes" shows every box that is not unpacked instead of a home. */
+  let inBoxesView = $state(false)
+  async function archiveHome() {
+    const h = store.home
+    if (!h) return
+    try {
+      await api.patch(`/api/v1/homes/${h.id}`, { archived: true })
+      showToast(`${h.name} archived`)
+      await store.init(null)
+    } catch (e) {
+      showToast(explain(e).message, 'error')
+    }
+  }
   const menu = 'flex h-11 w-full cursor-pointer items-center gap-2 rounded-control px-2.5 text-left text-[14px] hover:bg-chrome-hover'
   const subtitle = (p: TreePlace) => {
     const c = p.counts
@@ -246,20 +280,29 @@
 
 {#snippet homeSwitcher()}
   <!-- Only when the household has more than one home. -->
-  {#if store.homes.length > 1}
+  {#if store.homes.length > 1 || (store.homes.length === 1 && canWrite)}
     <Popover align="right">
       {#snippet trigger({ toggle, open })}
-        <Button icon="home" onclick={toggle} aria-expanded={open}>{store.home?.name ?? 'Home'}<Icon name="chevron-down" size={13} /></Button>
+        <Button icon="home" onclick={toggle} aria-expanded={open}>{inBoxesView ? 'In boxes' : (store.home?.name ?? 'Home')}<Icon name="chevron-down" size={13} /></Button>
       {/snippet}
       {#each store.homes as h (h.id)}
         <button
           type="button"
           class="{menu} md:h-9"
-          onclick={() => (store.switchHome(h.id), navigate('/places', true))}
+          onclick={() => ((inBoxesView = false), store.switchHome(h.id), navigate('/places', true))}
         >
-          <span class="min-w-0 flex-1 truncate">{h.name}</span>{#if h.id === store.homeId}<Icon name="check" class="text-accent" />{/if}
+          <span class="min-w-0 flex-1 truncate">{h.name}</span>{#if h.id === store.homeId && !inBoxesView}<Icon name="check" class="text-accent" />{/if}
         </button>
       {/each}
+      <button type="button" class="{menu} md:h-9" onclick={() => ((inBoxesView = true), navigate('/places', true))}>
+        <Icon name="box" class="text-muted" /><span class="min-w-0 flex-1 truncate">In boxes</span>{#if inBoxesView}<Icon name="check" class="text-accent" />{/if}
+      </button>
+      {#if canWrite}
+        <button type="button" class="{menu} md:h-9" onclick={() => ((newHomeName = 'New home'), (newHomeOpen = true))}><Icon name="plus" class="text-muted" />New home…</button>
+      {/if}
+      {#if can('admin') && !inBoxesView}
+        <button type="button" class="{menu} md:h-9" onclick={archiveHome}><Icon name="archive" class="text-muted" />Archive {store.home?.name ?? 'home'}</button>
+      {/if}
     </Popover>
   {/if}
 {/snippet}
@@ -270,19 +313,13 @@
 {/snippet}
 
 {#snippet noPlaces()}
-  <div class="flex flex-1 flex-col items-center justify-center gap-3 px-6 py-12 text-center">
-    <span class="flex size-12 items-center justify-center rounded-tile bg-accent-soft text-accent"><Icon name="pin" size={22} /></span>
-    <h2 class="m-0 text-[17px] font-bold">No places yet</h2>
-    <p class="m-0 max-w-[40ch] text-[14px] text-muted">Places say where things are: rooms, then furniture, then drawers and shelves. Start with a room.</p>
+  <EmptyState icon="pin" title="No places yet" message="Places say where things are: rooms, then furniture, then drawers and shelves. Start with a room.">
     {#if canWrite}<Button variant="primary" icon="plus" onclick={() => openAdd(null)}>Add a room</Button>{/if}
-  </div>
+  </EmptyState>
 {/snippet}
 
 {#snippet error()}
-  <div class="p-4 md:px-6">
-    <p role="alert" class="m-0 text-[13px] text-danger">{store.error}</p>
-    <Button class="mt-3" icon="refresh" onclick={() => store.load()}>Try again</Button>
-  </div>
+  <EmptyState tone="error" title="Places could not load" message={store.error} onretry={() => store.load()} />
 {/snippet}
 
 <!-- The content of one place: header, quick add, spots, contents. -->
@@ -348,14 +385,16 @@
     <PageHeader icon="pin" title="Places" breadcrumb={[activeHousehold()?.name ?? 'Household', ...(store.homes.length > 1 && store.home ? [store.home.name] : [])]}>
       {#snippet actions()}{@render headerActions()}{/snippet}
     </PageHeader>
-    {#if store.error && !store.places.length}
+    {#if inBoxesView}
+      <InBoxes />
+    {:else if store.error && !store.places.length}
       {@render error()}
     {:else if store.loaded && !store.places.length}
       {@render noPlaces()}
     {:else}
       <div class="flex min-h-0 flex-1">
         <nav aria-label="Places tree" class="w-[280px] flex-none overflow-y-auto border-r border-divider bg-surface-subtle">
-          {#if !store.loaded}<p class="m-0 p-4 text-[13px] text-muted">Loading places</p>{/if}
+          {#if !store.loaded}<Skeleton rows={6} label="Loading places" />{/if}
           <PlaceTree {store} {selectedId} {canWrite} onselect={select} onrename={rename} onreorder={reorder} onmove={askMove} ondropplace={dropPlace} ondropitems={dropItems} />
         </nav>
         <section aria-label="Place" class="flex min-w-0 flex-1 flex-col overflow-y-auto">
@@ -380,7 +419,7 @@
       </PanelFooter>
     {/if}
   </Panel>
-{:else if place}
+{:else if place && !inBoxesView}
   <!-- Phone: a place is its own screen. -->
   <FlowFrame icon="pin" title={place.name} breadcrumb={['Places']}>
     {@render placeBody(place, true)}
@@ -407,7 +446,9 @@
     <PageHeader icon="pin" title="Places" breadcrumb={[activeHousehold()?.name ?? 'Household']}>
       {#snippet actions()}{@render headerActions()}{/snippet}
     </PageHeader>
-    {#if store.error && !store.places.length}
+    {#if inBoxesView}
+      <InBoxes />
+    {:else if store.error && !store.places.length}
       {@render error()}
     {:else if store.loaded && !store.places.length}
       {@render noPlaces()}
@@ -439,6 +480,19 @@
 {/if}
 
 <AddPlacesDialog bind:open={addOpen} parent={addParent} onadd={addPlaces} />
+
+<Dialog bind:open={newHomeOpen} title="New home">
+  <form id="new-home-form" class="flex flex-col gap-3" onsubmit={(e) => { e.preventDefault(); createHome() }}>
+    <Field label="Name" bind:value={newHomeName} autocomplete="off" />
+    {#if store.home}
+      <label class="flex items-center gap-2 text-[14px]"><input type="checkbox" bind:checked={copyRooms} class="size-[18px]" />Copy the room names from {store.home.name}</label>
+    {/if}
+  </form>
+  {#snippet actions()}
+    <Button onclick={() => (newHomeOpen = false)}>Cancel</Button>
+    <Button variant="primary" type="submit" form="new-home-form">Create home</Button>
+  {/snippet}
+</Dialog>
 
 <Dialog bind:open={renameOpen} title="Rename">
   <form id="rename-form" onsubmit={(e) => { e.preventDefault(); const id = renameId; renameOpen = false; if (id && renameText.trim()) rename(id, renameText.trim()) }}>

@@ -1,11 +1,18 @@
 <script lang="ts">
   import { MediaQuery } from 'svelte/reactivity'
+  import AiHint from '../lib/AiHint.svelte'
+  import { activeHousehold } from '../lib/auth.svelte'
   import { ai } from '../lib/ai.svelte'
   import { explain } from '../lib/errors'
   import Icon from '../lib/Icon.svelte'
   import { getCatalog, categoryLabel, valueLabel } from '../lib/inventory/categories'
   import PlaceDialog from '../lib/inventory/PlaceDialog.svelte'
-  import { getTree, listHomes } from '../lib/inventory/places'
+  import { getTree, listHomes, recentPlaces, rememberPlace } from '../lib/inventory/places'
+  import PackingBar from '../lib/moving/PackingBar.svelte'
+  import { boxPlace, packing } from '../lib/moving/packing.svelte'
+  import DescribeBox from '../lib/quickadd/DescribeBox.svelte'
+  import { Describe } from '../lib/quickadd/textrows.svelte'
+  import DupHint from '../lib/quickadd/DupHint.svelte'
   import Grid from '../lib/quickadd/Grid.svelte'
   import { Sheet } from '../lib/quickadd/sheet.svelte'
   import { createSuggest } from '../lib/quickadd/suggest'
@@ -15,28 +22,47 @@
   import PanelFooter from '../lib/shell/PanelFooter.svelte'
   import Toolbar from '../lib/shell/Toolbar.svelte'
   import Button from '../lib/ui/Button.svelte'
+  import EmptyState from '../lib/ui/EmptyState.svelte'
+  import Skeleton from '../lib/ui/Skeleton.svelte'
   import { showToast } from '../lib/ui/toasts.svelte'
 
-  /** Phone quick add is a later job (J7.4); this is where it will live. */
   const PHONE_PATH = '/quick-add/phone'
 
   const desktop = new MediaQuery('min-width: 768px')
 
   let sheet = $state.raw<Sheet>()
   let error = $state('')
+  let attempt = $state(0)
   let placeOpen = $state(false)
+  const describe = new Describe()
 
   // The sheet only exists on a desktop-sized screen.
   $effect(() => {
     if (!desktop.current || sheet) return
+    void attempt
     void ai.ensure() // suggest() asks ai.status('text') on every row
     getCatalog().then(
       (catalog) => {
-        sheet = new Sheet(catalog, { suggest: createSuggest(), sendAiFields: true })
+        const s = new Sheet(catalog, { suggest: createSuggest(), sendAiFields: true })
+        // Start where the person last put something (J7.6); a packing box overrides it below.
+        const last = recentPlaces(activeHousehold()?.id ?? '')[0]
+        if (last) s.setPlaceDefault(last)
+        sheet = s
         loadPlaces(sheet)
       },
       (e) => (error = explain(e).message),
     )
+  })
+
+  // With a "packing now" box set, new rows go into it.
+  $effect(() => {
+    if (!packing.loaded) packing.load().catch(() => {})
+  })
+  $effect(() => {
+    const s = sheet
+    const b = packing.box
+    if (!s || !b) return
+    s.setPlaceDefault(boxPlace(b))
   })
 
   async function loadPlaces(s: Sheet) {
@@ -75,6 +101,7 @@
       <p class="m-0 text-[15px] text-body">The quick-add sheet is built for a keyboard and a wide screen. On your phone, add things from a simple list instead.</p>
       <Button variant="primary" href={PHONE_PATH} icon="arrow-right">Open phone quick add</Button>
     </div>
+    <PackingBar />
   </FlowFrame>
 {:else}
   <Panel>
@@ -106,13 +133,19 @@
             {#each sheet.catalog.statuses as s (s)}<option value={s}>{valueLabel(s)}</option>{/each}
           </select>
         </label>
-        <span class="ml-auto hidden text-[12px] text-muted lg:block">Type to fill a cell. <kbd class="font-mono">Tab</kbd> next, <kbd class="font-mono">↵</kbd> down, <kbd class="font-mono">⌘D</kbd> fill down, paste a list.</span>
+        <span class="ml-auto"><AiHint role="text" /></span>
+        <span class="hidden text-[12px] text-muted lg:block">Type to fill a cell. <kbd class="font-mono">Tab</kbd> next, <kbd class="font-mono">↵</kbd> down, <kbd class="font-mono">⌘D</kbd> fill down, paste a list.</span>
       </Toolbar>
 
+      <DescribeBox {describe} {sheet} />
       <div class="min-h-0 flex-1">
         <Grid {sheet} ondelete={remove} />
       </div>
+      {#each sheet.rows.filter((r) => r.created) as r (r.id)}
+        <DupHint brand={r.values.brand} model={r.values.model} name={r.values.name} excludeId={r.id} onresolve={(kind, m) => sheet!.resolveDuplicate(r.id, kind, m.id)} />
+      {/each}
 
+      <PackingBar />
       <PanelFooter>
         <span><span class="font-mono text-ink">{sheet.added}</span> {sheet.added === 1 ? 'row' : 'rows'} added this session</span>
         {#if sheet.saving}<span>Saving {sheet.saving}</span>{/if}
@@ -126,14 +159,14 @@
         value={sheet.places[sheet.defaults.place] ?? null}
         allowNone
         onpick={(p) => {
-          if (p) sheet!.addPlace(p)
-          sheet!.setDefaults({ place: p?.id ?? '' })
+          sheet!.setPlaceDefault(p)
+          if (p) rememberPlace(activeHousehold()?.id ?? '', p)
         }}
       />
     {:else if error}
-      <p role="alert" class="m-0 p-6 text-[14px] text-danger">{error}</p>
+      <EmptyState tone="error" title="Quick add could not start" message={error} onretry={() => ((error = ''), attempt++)} />
     {:else}
-      <p class="m-0 p-6 text-[14px] text-muted">Loading</p>
+      <Skeleton rows={8} />
     {/if}
   </Panel>
 {/if}

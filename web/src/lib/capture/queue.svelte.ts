@@ -151,6 +151,36 @@ export class CaptureQueue {
     return e
   }
 
+  /** Keeps a typed line (the create body of an item) until it can be sent, like a photo. */
+  async addLine(groupId: string, line: Record<string, unknown>): Promise<QueueEntry> {
+    const e: QueueEntry = { id: ulid(), groupId, role: 'item', placeId: null, blob: null, line, state: 'waiting', attempts: 0, error: null, seq: this.seq++, nextAt: 0 }
+    this.entries = [...this.entries, e]
+    await this.store?.put(e)
+    this.pump()
+    return e
+  }
+
+  private lineOf(groupId: string) {
+    return this.entries.find((e) => e.line && e.groupId === groupId && e.state !== 'uploaded')
+  }
+
+  /** Changes a queued line that has not left yet. False when there is none (it was sent: patch the item instead). */
+  async updateLine(groupId: string, fields: Record<string, unknown>): Promise<boolean> {
+    const e = this.lineOf(groupId)
+    if (!e || e.state === 'uploading' || this.inflight.has(e.id)) return false
+    const line = { ...e.line, ...fields }
+    for (const k of ['attributes', 'purchase'])
+      if (fields[k] && typeof fields[k] === 'object') line[k] = { ...(e.line?.[k] as object), ...(fields[k] as object) }
+    await this.update(e.id, { line })
+    return true
+  }
+
+  /** Drops a queued line that has not left yet. */
+  async removeLine(groupId: string): Promise<boolean> {
+    const e = this.lineOf(groupId)
+    return e ? this.remove(e.id) : false
+  }
+
   /** Removes a photo that has not been sent. Returns false when it is uploading or uploaded. */
   async remove(id: string): Promise<boolean> {
     const e = this.get(id)

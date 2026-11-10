@@ -131,6 +131,7 @@ func (s *Service) run(ctx context.Context, job jobs.Job) (json.RawMessage, error
 				draft.Confidence[path] = c
 			}
 		}
+		draft.OtherLines = prev.OtherLines
 		raw, _ := json.Marshal(draft)
 		return inventory.SetAIMeta(ctx, tx, hid, item.ID, StateReady, raw)
 	})

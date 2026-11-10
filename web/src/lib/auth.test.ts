@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { api } from './api'
+import { conn } from './connection.svelte'
 import { atLeast, auth, boot, can, login, requireLogin, takeReturnTo } from './auth.svelte'
 
 type Handler = (url: string, init: RequestInit) => Response
@@ -70,7 +71,7 @@ test('login posts credentials then loads the session; wrong password is not a re
   expect(auth.status).toBe('ready')
 })
 
-test('a later 401 sends a signed-in person to login and back to the same page', async () => {
+test('a later 401 keeps the screen and flags the ended session', async () => {
   route({
     'GET /api/v1/setup': Response.json({ needed: false }),
     'GET /api/v1/me': Response.json(me),
@@ -79,6 +80,10 @@ test('a later 401 sends a signed-in person to login and back to the same page', 
   await boot()
   expect(auth.status).toBe('ready')
   await api.get('/api/v1/items').catch(() => {})
+  expect(auth.status).toBe('ready')
+  expect(conn.sessionEnded).toBe(true)
+  requireLogin('/items?q=lamp')
+  expect(conn.sessionEnded).toBe(false)
   expect(auth.status).toBe('login')
   expect(auth.user).toBeNull()
   expect(takeReturnTo()).toBe('/items?q=lamp')

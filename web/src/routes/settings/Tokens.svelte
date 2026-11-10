@@ -92,6 +92,10 @@
   }
 
   // Revoke
+  // "Connect an agent": the MCP endpoint and a ready-to-paste client config.
+  const mcpUrl = `${location.origin}/mcp`
+  const mcpConfig = JSON.stringify({ mcpServers: { inventory: { type: 'http', url: mcpUrl, headers: { Authorization: 'Bearer <your token>' } } } }, null, 2)
+
   let revoking = $state<Token | null>(null)
   let revokeOpen = $state(false)
   let revokeError = $state('')
@@ -115,6 +119,12 @@
     <Button variant="primary" icon="plus" onclick={openCreate}>New token</Button>
   </div>
   <p class="m-0 px-4 pt-3 text-[13px] text-muted md:px-6">An agent or script uses a token instead of your password. It acts with your role in this household, limited by its scope.</p>
+  <div class="m-0 border-b border-divider-row px-4 py-3 md:px-6" data-testid="connect-agent">
+    <h4 class="m-0 text-[13px] font-semibold">Connect an agent</h4>
+    <p class="m-0 mt-1 text-[13px] text-muted">Create a token above (read only to let it look things up, read and write to let it add and move), then give your MCP client this address and the token.</p>
+    <p class="m-0 mt-2 select-all break-all font-mono text-[12px]">{mcpUrl}</p>
+    <pre class="m-0 mt-2 overflow-x-auto rounded bg-surface-subtle p-2 font-mono text-[12px]">{mcpConfig}</pre>
+  </div>
   {#if message}<div class="p-4 md:px-6"><FormError {message} /></div>{/if}
   {#if !loaded}
     <p class="m-0 px-4 py-4 text-[14px] text-muted md:px-6">Loading</p>

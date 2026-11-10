@@ -1,5 +1,7 @@
 // Tiny typed client for the JSON API. Every failure becomes an ApiError.
 
+import { noteResponse } from './connection.svelte'
+
 export class ApiError extends Error {
   constructor(
     public status: number, // 0 when the server could not be reached
@@ -32,6 +34,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
       body: body === undefined ? undefined : body instanceof FormData ? body : JSON.stringify(body),
     })
   } catch {
+    noteResponse(0)
     throw new ApiError(0, 'network', 'Could not reach the server. Check your connection.')
   }
 
@@ -45,6 +48,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     }
   }
 
+  noteResponse(res.status)
   if (res.status === 401 && !publicPath.test(path)) onUnauthorized?.(path)
   if (!res.ok) {
     const e = data?.error

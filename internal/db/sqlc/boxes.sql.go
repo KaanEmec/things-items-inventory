@@ -10,6 +10,28 @@ import (
 	"database/sql"
 )
 
+const countHomeContents = `-- name: CountHomeContents :one
+SELECT CAST(
+  (SELECT COUNT(*) FROM items i JOIN places p ON p.id = i.place_id AND p.household_id = i.household_id
+    WHERE i.household_id = ?1 AND i.deleted_at IS NULL AND p.home_id = ?2)
++ (SELECT COUNT(*) FROM contents_lines l JOIN places p ON p.id = l.place_id AND p.household_id = l.household_id
+    WHERE l.household_id = ?1 AND l.deleted_at IS NULL AND p.home_id = ?2)
+AS INTEGER) AS n
+`
+
+type CountHomeContentsParams struct {
+	HouseholdID string
+	HomeID      sql.NullString
+}
+
+// Live items and contents lines left in a home (the old home may be archived when this is 0).
+func (q *Queries) CountHomeContents(ctx context.Context, arg CountHomeContentsParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countHomeContents, arg.HouseholdID, arg.HomeID)
+	var n int64
+	err := row.Scan(&n)
+	return n, err
+}
+
 const getBoxByNumber = `-- name: GetBoxByNumber :one
 SELECT id, household_id, created_at, updated_at, deleted_at, home_id, parent_id, kind, name, sort, path, lineage, goes_to_id, color, daily_use, note, box_number, box_status, handling, packed_at, packed_by, label_printed_at FROM places
 WHERE household_id = ? AND kind = 'box' AND box_number = ? AND deleted_at IS NULL

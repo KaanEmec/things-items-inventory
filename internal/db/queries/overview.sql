@@ -69,3 +69,14 @@ FROM places p
 LEFT JOIN places g ON g.id = p.goes_to_id AND g.household_id = p.household_id
 WHERE p.household_id = ? AND p.kind = 'box' AND p.deleted_at IS NULL
 GROUP BY p.box_status, p.goes_to_id, g.name, g.color;
+
+-- name: OverviewNotFoundCount :one
+-- Items that were marked "not found" while unpacking (live, confirmed, in no place).
+SELECT CAST(COUNT(*) AS INTEGER) FROM items
+WHERE household_id = ? AND deleted_at IS NULL AND draft = 0 AND place_id IS NULL;
+
+-- name: OverviewNotFound :many
+SELECT id, name, category, updated_at AS at FROM items
+WHERE household_id = ? AND deleted_at IS NULL AND draft = 0 AND place_id IS NULL
+ORDER BY updated_at DESC, id DESC
+LIMIT ?;

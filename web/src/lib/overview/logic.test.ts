@@ -54,7 +54,7 @@ describe('links and cells', () => {
   it('builds strip cells whose URLs the Items list understands', () => {
     const cells = stripCells({ all: 5, drafts: 1, packed: 2, to_sell: 3, in_warranty: 4 })
     expect(cells.map((c) => c.value)).toEqual([5, 1, 2, 3, 4])
-    expect(cells.map((c) => c.href)).toEqual(['/items', '/items?draft=1', '/items?status=packed', '/items?status=to_sell', '/items?warranty=active'])
+    expect(cells.map((c) => c.href)).toEqual(['/items', '/drafts', '/items?status=packed', '/items?status=to_sell', '/items?warranty=active'])
   })
   it('hides empty groups and detects the first day', () => {
     expect(visibleGroups([{ kind: 'drafts', count: 0, rows: [] }, { kind: 'unseen', count: 2, rows: [] }]).map((g) => g.kind)).toEqual(['unseen'])

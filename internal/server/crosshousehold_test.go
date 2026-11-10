@@ -63,6 +63,9 @@ var publicRoutes = map[string]string{
 	"POST /api/v1/auth/login": "login",
 	"POST /api/v1/auth/reset": "one-time reset link",
 
+	"GET /api/v1/openapi.json": "API description (J9.2)",
+	"GET /api/docs":            "API reference page (J9.2)",
+
 	"GET /api/v1/invites/{token}":         "invite link preview; the secret token is the credential",
 	"POST /api/v1/invites/{token}/accept": "invite link accept; the secret token is the credential",
 }

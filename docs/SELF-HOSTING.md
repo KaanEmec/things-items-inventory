@@ -40,6 +40,13 @@ Stop the container, copy the volume, start it again:
 
 Restore by extracting into an empty volume. Keep `secret.key` with the database.
 
+**Export** (owners and admins): Settings > Household > "Export everything"
+downloads one zip with CSV files, `inventory.json` and the original photos.
+It leaves out AI tokens, password hashes, sessions, access tokens and invite
+links, so it is for taking your data elsewhere, not a restore point. Use the
+`/data` copy above for restores. Continuous backup with Litestream is planned
+(J10.5) and not available yet.
+
 ## Coolify
 
 Create a Docker image or Dockerfile application, add a persistent storage mounted at `/data`, set `INVENTORY_PUBLIC_URL` to your domain, port `8080`, and a health check on `/api/health`. Coolify's proxy terminates HTTPS; also set `INVENTORY_TRUST_PROXY=1`.

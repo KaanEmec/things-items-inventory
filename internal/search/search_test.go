@@ -556,3 +556,21 @@ func TestEndpoint(t *testing.T) {
 		t.Fatal(status, body)
 	}
 }
+
+func TestSimilarEndpoint(t *testing.T) {
+	e := newEnv(t)
+	room := e.place("", "room", "Bedroom")
+	hp := e.item(room, map[string]any{"name": "Sony headphones", "brand": "Sony", "model": "WH-1000XM4"})
+	srv := serve(e, auth.RoleViewer)
+
+	status, body := httpapitest.Do(t, srv, "GET", "/api/v1/search/similar?brand=sony&model=wh1000xm4&name=cans", "")
+	if status != 200 || !strings.Contains(body, hp) || !strings.Contains(body, `"why":"brand_model"`) {
+		t.Fatal(status, body)
+	}
+	if status, body = httpapitest.Do(t, srv, "GET", "/api/v1/search/similar?name=cable", ""); status != 200 || !strings.Contains(body, `"items":[]`) {
+		t.Fatal(status, body)
+	}
+	if _, body = httpapitest.Do(t, srv, "GET", "/api/v1/search/similar?brand=sony&model=wh1000xm4&exclude="+hp, ""); !strings.Contains(body, `"items":[]`) {
+		t.Fatal(body)
+	}
+}

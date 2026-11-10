@@ -1,6 +1,7 @@
 <script lang="ts">
   import Icon from '../Icon.svelte'
   import Button from '../ui/Button.svelte'
+  import EmptyState from '../ui/EmptyState.svelte'
   import Dialog from '../ui/Dialog.svelte'
   import { captureQueue as queue } from './queue.svelte'
   import { roleLabel, stateClass, stateLabel } from './labels'
@@ -13,7 +14,7 @@
 
 <Dialog bind:open title="Uploads" size="md">
   {#if !list.length}
-    <p class="m-0 text-[14px] text-muted">Nothing in the queue.</p>
+    <EmptyState compact icon="upload" title="Nothing in the queue" message="Photos you capture wait here until they are uploaded." />
   {:else}
     {#if queue.pending}
       <p class="m-0 mb-3 flex items-center gap-2 text-[13px] text-muted"><Icon name="upload" />Keep the app open to finish uploading.</p>

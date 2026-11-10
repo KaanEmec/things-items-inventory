@@ -1,5 +1,6 @@
 // Session state: who is signed in, in which household, with which role.
 // App.svelte decides what to show from `auth.status`.
+import { conn } from './connection.svelte'
 import { ApiError, api, setUnauthorizedHandler } from './api'
 
 export type Role = 'viewer' | 'member' | 'admin' | 'owner'
@@ -72,12 +73,17 @@ function applyMe(me: any) {
 
 /** Sends the person to Login and remembers where they were. */
 export function requireLogin(returnTo = here()) {
+  conn.sessionEnded = false
   if (auth.status === 'ready') clearSession()
   if (returnTo !== '/login' && returnTo !== '/setup') auth.returnTo = returnTo
   auth.status = 'login'
 }
 
-setUnauthorizedHandler(() => requireLogin())
+// A signed-in screen stays put when the session ends, so nothing typed is lost; the banner asks to sign in again.
+setUnauthorizedHandler(() => {
+  if (auth.status === 'ready') conn.sessionEnded = true
+  else requireLogin()
+})
 
 /** Loads /me. Returns false (and shows Login) when there is no session. */
 export async function loadSession(): Promise<boolean> {
@@ -116,6 +122,7 @@ export async function login(email: string, password: string) {
 }
 
 export async function logout() {
+  conn.sessionEnded = false
   await api.post(`${V1}/auth/logout`)
   auth.returnTo = ''
   clearSession()

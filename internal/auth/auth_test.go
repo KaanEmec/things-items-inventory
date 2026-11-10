@@ -672,3 +672,22 @@ func TestHashSlotsRespectContext(t *testing.T) {
 		t.Fatal("verify ran although every slot was taken")
 	}
 }
+
+// A request with an Authorization header is token-or-nothing: a bad bearer
+// neither skips the CSRF check nor falls back to the session cookie.
+func TestBadBearerDoesNotFallBackToCookie(t *testing.T) {
+	e := newEnv(t, config.Config{})
+	hid := seedHousehold(t, e.d, "H")
+	seedUser(t, e.d, "Bob", "bob@example.com", hid, "member")
+	c := e.client()
+	c.login("bob@example.com")
+	if s, _, _ := c.do("GET", "/api/v1/me", "", "Authorization", "Bearer stash_pat_nonsense"); s != 401 {
+		t.Errorf("bad token with a good cookie: %d, want 401", s)
+	}
+	if s, _, _ := c.do("GET", "/api/v1/me", "", "Authorization", "Basic abc"); s != 401 {
+		t.Errorf("other Authorization scheme with a good cookie: %d, want 401", s)
+	}
+	if s, _, _ := c.do("POST", "/api/v1/auth/logout", "", "Authorization", "Bearer stash_pat_nonsense", "Sec-Fetch-Site", "cross-site"); s != 403 {
+		t.Errorf("cross-site write with a bad bearer: %d, want 403", s)
+	}
+}

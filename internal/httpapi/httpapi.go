@@ -66,7 +66,7 @@ func New(version, buildTime string, app fs.FS, routes ...Routes) http.Handler {
 	mux.Handle("/", spa(app))
 	api := chain(mux.ServeMux, mux.mws...)
 	root := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasPrefix(r.URL.Path, "/api/") {
+		if strings.HasPrefix(r.URL.Path, "/api/") || r.URL.Path == "/mcp" { // /mcp (J9.3) shares the auth middleware
 			api.ServeHTTP(w, r)
 			return
 		}

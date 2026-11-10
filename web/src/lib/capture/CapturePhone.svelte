@@ -4,20 +4,35 @@
   import PlaceDialog from '../inventory/PlaceDialog.svelte'
   import FlowFrame from '../shell/FlowFrame.svelte'
   import Button from '../ui/Button.svelte'
+  import Dialog from '../ui/Dialog.svelte'
   import { showToast } from '../ui/toasts.svelte'
   import { prepare } from './input'
   import { roleLabel, stateClass, stateLabel } from './labels'
   import Picker from './Picker.svelte'
   import QueueSheet from './QueueSheet.svelte'
+  import ContentsReview from '../drafts/ContentsReview.svelte'
+  import DraftFormSlot from './DraftFormSlot.svelte'
   import { captureQueue as queue, type Role } from './queue.svelte'
+  import PackingBar from '../moving/PackingBar.svelte'
+  import { boxPlace, packing } from '../moving/packing.svelte'
   import { CaptureSession } from './session.svelte'
   import Thumb from './Thumb.svelte'
 
   const session = new CaptureSession(queue, auth.householdId)
 
+  // With a "packing now" box set, everything captured goes into it.
+  $effect(() => {
+    if (!packing.loaded) packing.load().catch(() => {})
+  })
+  $effect(() => {
+    if (packing.box) session.setPlace(boxPlace(packing.box))
+  })
+
   let picker: Picker
   let placeOpen = $state(false)
   let sheetOpen = $state(false)
+  let draftOpen = $state(false)
+  let contentsOpen = $state(false)
   let busy = $state(0)
   /** The slot the next photo goes to in Item mode. */
   let active = $state<Role>('item')
@@ -26,6 +41,8 @@
   const hint: Record<string, string> = { item: 'The thing itself', label: 'Optional · model or serial label', receipt: 'Optional · proof of purchase' }
   const role = $derived<Role>(session.mode === 'contents' ? 'contents' : active)
   const shots = $derived(session.shots)
+  const contentsReady = $derived(session.mode === 'contents' && !!session.place && shots.some((e) => e.role === 'contents' && e.state === 'uploaded'))
+  const reviewable = $derived(session.mode === 'item' && shots.some((e) => e.role === 'item' && e.state === 'uploaded'))
 
   function shoot(from: 'camera' | 'library') {
     if (session.mode === 'contents' && !session.place) {
@@ -64,6 +81,7 @@
 </script>
 
 <FlowFrame icon="camera" title="Capture">
+  <PackingBar />
   <div class="flex flex-col pb-4">
     <!-- Place: stays until changed. -->
     <button type="button" onclick={() => (placeOpen = true)} class="flex min-h-14 w-full cursor-pointer items-center gap-3 border-0 border-b border-divider bg-surface px-4 text-left">
@@ -147,6 +165,13 @@
       {/if}
     </section>
 
+    {#if contentsReady}
+      <Button class="mx-4 mt-4" icon="package" onclick={() => (contentsOpen = true)}>Review box contents</Button>
+    {/if}
+    {#if reviewable}
+      <Button class="mx-4 mt-4" icon="sparkle" onclick={() => (draftOpen = true)}>Review draft</Button>
+    {/if}
+
     <!-- Queue. -->
     <button type="button" onclick={() => (sheetOpen = true)} class="mx-4 mt-4 flex min-h-12 cursor-pointer items-center gap-3 rounded-control border border-border bg-surface px-3 text-left">
       <Icon name="upload" class="text-label" />
@@ -175,3 +200,9 @@
 <Picker bind:this={picker} {onfiles} />
 <PlaceDialog bind:open={placeOpen} title={session.mode === 'contents' ? 'Which container?' : 'Where do new items go?'} value={session.place} allowNone={session.mode === 'item'} onpick={(p) => session.setPlace(p)} />
 <QueueSheet bind:open={sheetOpen} />
+<Dialog bind:open={contentsOpen} title="Box contents" size="lg">
+  {#if session.place}<ContentsReview placeId={session.place.id} />{/if}
+</Dialog>
+<Dialog bind:open={draftOpen} title="Draft">
+  <div class="-m-1 h-[70dvh]"><DraftFormSlot itemId={session.groupId} uploaded={reviewable} /></div>
+</Dialog>

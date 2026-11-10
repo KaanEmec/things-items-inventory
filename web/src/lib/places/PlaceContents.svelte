@@ -12,6 +12,8 @@
   import SectionBar from '../shell/SectionBar.svelte'
   import Toolbar from '../shell/Toolbar.svelte'
   import Button from '../ui/Button.svelte'
+  import EmptyState from '../ui/EmptyState.svelte'
+  import Skeleton from '../ui/Skeleton.svelte'
   import Popover from '../ui/Popover.svelte'
   import StatusPill from '../ui/StatusPill.svelte'
   import { showToast } from '../ui/toasts.svelte'
@@ -203,11 +205,11 @@
 </SectionBar>
 <div class="@container bg-surface">
   {#if list.error}
-    <p role="alert" class="m-0 px-4 py-3 text-[13px] text-danger md:px-6">{list.error}</p>
+    <EmptyState tone="error" compact title="Items could not load" message={list.error} onretry={() => list.reset(list.query)} />
   {:else if !list.loaded}
-    <p class="m-0 px-4 py-3 text-[13px] text-muted md:px-6">Loading</p>
+    <Skeleton rows={3} />
   {:else if !items.length}
-    <p class="m-0 px-4 py-4 text-[13px] text-muted md:px-6">No items are directly in {place.name}.{#if canWrite} Drop items from the list here, or capture new ones.{/if}</p>
+    <EmptyState compact icon="box" title="No items directly in {place.name}" message={canWrite ? 'Drop items from the list here, or capture new ones.' : undefined} />
   {/if}
   {#each items as item (item.id)}
     <div role="listitem" draggable={canWrite && !phone} ondragstart={(e) => dragItem(e, item)} ondragend={endDrag}>

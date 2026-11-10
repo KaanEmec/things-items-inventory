@@ -483,6 +483,11 @@ func (e *edit) save(ctx context.Context, q *sqlc.Queries, hid, userID string, se
 		}
 		e.row.Currency = nullStr(cur)
 	}
+	if byPerson {
+		if err := e.defaultWarranty(ctx, q, hid); err != nil {
+			return e.row, err
+		}
+	}
 	t := now()
 	if seen {
 		e.row.LastSeenAt = t
@@ -499,6 +504,29 @@ func (e *edit) save(ctx context.Context, q *sqlc.Queries, hid, userID string, se
 		PurchaseDate: r.PurchaseDate, PriceMinor: r.PriceMinor, Currency: r.Currency, Seller: r.Seller,
 		WarrantyEnd: r.WarrantyEnd, WarrantySource: r.WarrantySource, LastSeenAt: r.LastSeenAt,
 		UpdatedBy: updatedBy, UpdatedAt: t, HouseholdID: hid, ID: r.ID})
+}
+
+// defaultWarranty gives an item with a purchase date and no warranty end (or
+// only an earlier default one) the end date = purchase date + the household's
+// default warranty length, marked as source "default". A stated end is kept.
+func (e *edit) defaultWarranty(ctx context.Context, q *sqlc.Queries, hid string) error {
+	if !e.row.PurchaseDate.Valid || (e.row.WarrantyEnd.Valid && e.row.WarrantySource.String != "default") {
+		return nil
+	}
+	d, err := time.Parse("2006-01-02", e.row.PurchaseDate.String)
+	if err != nil {
+		return nil
+	}
+	h, err := q.GetHousehold(ctx, hid)
+	if err != nil {
+		return err
+	}
+	if h.DefaultWarrantyMonths <= 0 {
+		return nil
+	}
+	e.row.WarrantyEnd = nullStr(d.AddDate(0, int(h.DefaultWarrantyMonths), 0).Format("2006-01-02"))
+	e.row.WarrantySource = nullStr("default")
+	return nil
 }
 
 func getItemRow(ctx context.Context, q *sqlc.Queries, hid, itemID string) (sqlc.Item, error) {
@@ -570,6 +598,9 @@ func CreateItem(ctx context.Context, tx *sql.Tx, householdID, userID string, n N
 			return item, false, err
 		}
 		e.row.Currency = nullStr(cur)
+	}
+	if err := e.defaultWarranty(ctx, q, householdID); err != nil {
+		return item, false, err
 	}
 	attrs, ai := e.marshal()
 	r := e.row

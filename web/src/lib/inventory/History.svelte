@@ -7,6 +7,8 @@
   import { stream } from '../stream.svelte'
   import Avatar from '../ui/Avatar.svelte'
   import Button from '../ui/Button.svelte'
+  import EmptyState from '../ui/EmptyState.svelte'
+  import Skeleton from '../ui/Skeleton.svelte'
   import { actorLabel, verb, type HistoryEntry } from './history'
 
   let { itemId }: { itemId: string } = $props()
@@ -86,11 +88,11 @@
   <h3 class="m-0 flex h-11 items-center gap-2 border-b border-divider bg-surface-subtle px-4 text-[13px] font-semibold md:px-6"><Icon name="clock" class="text-label" />History</h3>
   <div class="border-b border-divider bg-surface">
     {#if error && !entries.length}
-      <p class="m-0 px-4 py-3 text-[13px] text-muted md:px-6" role="alert">{error}</p>
+      <EmptyState tone="error" compact title="History could not load" message={error} onretry={() => load()} />
     {:else if !loaded}
-      <p class="m-0 px-4 py-3 text-[13px] text-muted md:px-6">Loading</p>
+      <Skeleton rows={3} />
     {:else if !entries.length}
-      <p class="m-0 px-4 py-3 text-[13px] text-muted md:px-6">Nothing recorded yet.</p>
+      <EmptyState compact icon="clock" title="Nothing recorded yet" message="Changes to this item will show up here." />
     {:else}
       <ol class="m-0 flex list-none flex-col p-0">
         {#each entries as e (e.id)}

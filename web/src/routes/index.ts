@@ -2,12 +2,14 @@ import type { Component } from 'svelte'
 import type { IconName } from '../lib/icons'
 import Capture from './Capture.svelte'
 import Components from './dev/Components.svelte'
+import Drafts from './Drafts.svelte'
 import Items from './Items.svelte'
 import Moving from './Moving.svelte'
 import Overview from './Overview.svelte'
 import Places from './Places.svelte'
 import PrintLabels from './PrintLabels.svelte'
 import QuickAdd from './QuickAdd.svelte'
+import QuickAddPhone from './QuickAddPhone.svelte'
 import Settings from './Settings.svelte'
 
 export interface Route {
@@ -28,11 +30,13 @@ export const routes: Route[] = [
   { path: '/', title: 'Overview', icon: 'dashboard', component: Overview, side: 'library', tab: 'Home' },
   { path: '/items', title: 'Items', icon: 'tag', component: Items, prefix: true, side: 'library', tab: 'Items' },
   { path: '/capture', title: 'Capture', icon: 'camera', component: Capture, tab: 'Capture' },
+  { path: '/drafts', title: 'Drafts', icon: 'sparkle', component: Drafts, side: 'library' },
   { path: '/places', title: 'Places', icon: 'pin', component: Places, side: 'library', tab: 'Places' },
   { path: '/moving', title: 'Moving', icon: 'truck', component: Moving, side: 'tools', tab: 'Moving' },
   { path: '/quick-add', title: 'Quick add', icon: 'table', component: QuickAdd, side: 'tools' },
   { path: '/settings', title: 'Settings', icon: 'sliders', component: Settings, prefix: true, side: 'foot' },
   // Hidden: reachable by URL only.
+  { path: '/quick-add/phone', title: 'Quick add', icon: 'table', component: QuickAddPhone },
   { path: '/print/labels', title: 'Print labels', icon: 'printer', component: PrintLabels },
   { path: '/dev/components', title: 'Components', icon: 'sliders', component: Components },
 ]

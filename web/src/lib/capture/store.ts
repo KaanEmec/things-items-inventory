@@ -20,6 +20,8 @@ export interface QueueEntry {
   seq: number
   /** Earliest time (ms) the next try may start; 0 = now. */
   nextAt: number
+  /** A typed quick-add line (J7.4): the create body for POST /items; `blob` is null. Sent like a photo, idempotent on `groupId`. */
+  line?: Record<string, unknown>
 }
 
 export interface QueueStore {

@@ -21,12 +21,6 @@
     </div>
   {/if}
 
-  {#if !pwa.online}
-    <div class="pointer-events-auto rounded-control border border-border bg-ink p-3 text-[13px] text-white shadow-popover" role="status">
-      <strong class="font-semibold">You're offline.</strong> Capture still saves photos and uploads them when you're back.
-    </div>
-  {/if}
-
   {#if guide}
     <div class="pointer-events-auto rounded-control border border-border bg-surface p-4 shadow-popover" role="region" aria-label="Add to Home Screen">
       <p class="m-0 mb-3 text-[14px] font-semibold text-ink">Add {APP_NAME} to your Home Screen</p>

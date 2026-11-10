@@ -81,3 +81,9 @@
     <p class="m-0 text-[14px] text-muted">Loading</p>
   {/if}
 </Block>
+
+{#if editable}
+  <Block title="Export everything" note="One zip with CSV files, inventory.json and your original photos. AI tokens, passwords and invite links are left out.">
+    <a class="inline-block text-[14px] font-medium text-accent underline" href="/api/v1/export" download>Download export</a>
+  </Block>
+{/if}

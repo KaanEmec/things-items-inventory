@@ -1,5 +1,7 @@
 <script lang="ts">
   import Icon from '../Icon.svelte'
+  import EmptyState from '../ui/EmptyState.svelte'
+  import Skeleton from '../ui/Skeleton.svelte'
   import { segments, type Mark } from './marks'
   import { palette } from './state.svelte'
 
@@ -112,7 +114,13 @@
         </div>
       {/each}
       {#if !rows.length}
-        <p class="m-0 px-3 py-6 text-center text-[14px] text-muted">{palette.error ? 'Search failed. Try again.' : palette.loading ? 'Searching' : 'No matches.'}</p>
+        {#if palette.error}
+          <EmptyState tone="error" compact title="Search failed" message="Check your connection and try again." />
+        {:else if palette.loading}
+          <Skeleton rows={3} label="Searching" />
+        {:else}
+          <EmptyState compact icon="search" title="No matches" message="Try fewer words or a different spelling." />
+        {/if}
       {/if}
     </div>
     <div class="sr-only" aria-live="polite">{palette.loading ? 'Searching' : `${rows.length} results`}</div>

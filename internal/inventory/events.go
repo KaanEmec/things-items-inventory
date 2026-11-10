@@ -38,6 +38,7 @@ type Change struct {
 	Kind        string
 	ItemID      string
 	PlaceID     string
+	Subject     string // "lines", "ai", "home" ... as in the event
 }
 
 // Notice is what a committed change looks like to the event stream: Type is
@@ -214,7 +215,9 @@ func RecordEvent(ctx context.Context, tx *sql.Tx, in EventInput) error {
 	if ctx.Value(quietKey) != nil {
 		return nil
 	}
-	if in.HouseholdID == "" || (in.ItemID == "" && in.PlaceID == "") || !slices.Contains(EventKinds, in.Kind) {
+	// A settings_changed event may belong to the household alone (AI profiles).
+	household := in.Kind == "settings_changed" && in.ItemID == "" && in.PlaceID == ""
+	if in.HouseholdID == "" || (in.ItemID == "" && in.PlaceID == "" && !household) || !slices.Contains(EventKinds, in.Kind) {
 		return fmt.Errorf("inventory: bad event %q for household %q", in.Kind, in.HouseholdID)
 	}
 	data := map[string]any{}
@@ -238,7 +241,10 @@ func RecordEvent(ctx context.Context, tx *sql.Tx, in EventInput) error {
 	if err != nil {
 		return fmt.Errorf("record event: %w", err)
 	}
-	c := Change{HouseholdID: in.HouseholdID, Kind: in.Kind, ItemID: in.ItemID, PlaceID: in.PlaceID}
+	if household {
+		return nil
+	}
+	c := Change{HouseholdID: in.HouseholdID, Kind: in.Kind, ItemID: in.ItemID, PlaceID: in.PlaceID, Subject: in.Subject}
 	for _, h := range changeHooks() {
 		if err := h(ctx, tx, c); err != nil {
 			return err

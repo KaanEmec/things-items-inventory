@@ -54,3 +54,10 @@ export const removeLink = (linkId: string) => api.del(`/api/v1/photo-links/${lin
 /** Links an already uploaded photo again (undo of a delete). It goes to the end of the gallery. */
 export const relink = (photoId: string, itemId: string, role: string) =>
   api.post('/api/v1/photo-links', { photo_id: photoId, item_id: itemId, role })
+
+/** The original file of a stored photo. */
+export async function fetchPhotoBlob(sha256: string): Promise<Blob> {
+  const r = await fetch(photoUrl(sha256, 'orig'), { credentials: 'same-origin' })
+  if (!r.ok) throw new Error('Could not read the photo.')
+  return r.blob()
+}

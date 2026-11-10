@@ -70,6 +70,7 @@ type Service struct {
 func New(d *db.DB, a *ai.Service, p PhotoSource, q *jobs.Queue) *Service {
 	s := &Service{d: d, ai: a, photos: p, q: q, Delay: CaptureDelay}
 	q.Register(Kind, jobs.Handler{Timeout: 4 * time.Minute, MaxAttempts: MaxAttempts, Run: s.run})
+	s.registerReaders()
 	return s
 }
 
@@ -98,6 +99,8 @@ type Draft struct {
 	Model         string            `json:"model"`
 	Error         *string           `json:"error"`
 	RunAt         string            `json:"run_at"`
+	// OtherLines are the receipt lines that are not this item (J6.5).
+	OtherLines []prompt.ReceiptLine `json:"receipt_lines,omitempty"`
 }
 
 func parseDraft(raw []byte) Draft {
@@ -132,7 +135,15 @@ func (s *Service) OnPhoto(ctx context.Context, tx *sql.Tx, householdID, userID, 
 	if _, err := s.ai.For(ctx, sqlc.New(tx), householdID, ai.RoleVision); errors.Is(err, ai.ErrNotSetUp) {
 		return nil
 	}
-	_, _, err = s.queue(ctx, tx, householdID, userID, itemID, "", s.Delay)
+	if _, _, err = s.queue(ctx, tx, householdID, userID, itemID, "", s.Delay); err != nil {
+		return err
+	}
+	switch role { // a label or receipt photo also gets its own reader
+	case "label":
+		_, _, err = s.queueReader(ctx, tx, householdID, userID, KindLabel, itemID, s.Delay)
+	case "receipt":
+		_, _, err = s.queueReader(ctx, tx, householdID, userID, KindReceipt, itemID, s.Delay)
+	}
 	return err
 }
 

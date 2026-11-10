@@ -3,6 +3,7 @@
   import { ApiError } from '../api'
   import { can } from '../auth.svelte'
   import { explain } from '../errors'
+  import { readReceipt, warrantySourceText } from '../drafts/drafts'
   import { ago } from '../format'
   import Icon from '../Icon.svelte'
   import { navigate, router } from '../router.svelte'
@@ -22,7 +23,7 @@
   import { confirmItem, deleteItem, getItem, markSeen, moveItem, patchItem, restoreItem } from './items'
   import type { ItemList } from './list.svelte'
   import PhotoStrip from './PhotoStrip.svelte'
-  import { moveLink, relink, removeLink, toJpeg, uploadItemPhoto } from './photos'
+  import { photoUrl, moveLink, relink, removeLink, toJpeg, uploadItemPhoto } from './photos'
   import PlaceDialog from './PlaceDialog.svelte'
   import type { Catalog, Item, ItemPhoto, PlaceShort } from './types'
   import { warrantyLine } from './warranty'
@@ -164,6 +165,32 @@
     })
   }
 
+  // Receipt: kept under Purchase; the AI reads it when it is set up, otherwise the fields are typed.
+  let receiptInput = $state<HTMLInputElement>()
+  async function addReceipt() {
+    const f = receiptInput?.files?.[0]
+    if (receiptInput) receiptInput.value = ''
+    if (!f) return
+    await guarded(async () => {
+      await uploadItemPhoto(item!.id, await toJpeg(f), 'receipt')
+      setItem(await getItem(item!.id))
+      try {
+        await readReceipt(item!.id)
+        showToast('Receipt added. The AI is reading it.')
+      } catch {
+        showToast('Receipt added. Type the purchase details by hand.')
+      }
+    })
+  }
+  async function copySerial() {
+    try {
+      await navigator.clipboard.writeText(item!.serial ?? '')
+      showToast('Serial copied', 'success')
+    } catch {
+      showToast('Copy failed. Select the serial and copy it by hand.', 'error')
+    }
+  }
+
   // Photos
   async function addPhotos(files: File[]) {
     photoBusy = true
@@ -232,7 +259,7 @@
     <p class="m-0 p-6 text-[14px] {loadError ? 'text-danger' : 'text-muted'}" role={loadError ? 'alert' : undefined}>{loadError || 'Loading'}</p>
   {:else}
     {@const it = item}
-    <PhotoStrip photos={it.photos} category={it.category} canEdit={canEdit} busy={photoBusy} onadd={addPhotos} onmove={movePhoto} onmain={(p) => reorder(p, 0)} ondelete={deletePhoto} class="bg-surface" />
+    <PhotoStrip photos={it.photos.filter((p) => p.role !== 'receipt')} category={it.category} canEdit={canEdit} busy={photoBusy} onadd={addPhotos} onmove={movePhoto} onmain={(p) => reorder(p, 0)} ondelete={deletePhoto} class="bg-surface" />
 
     {#if canEdit && (it.draft || it.ai_fields.length)}
       <div class="flex flex-wrap items-center gap-3 border-b border-divider bg-ai-field-bg px-4 py-3 md:px-6">
@@ -308,6 +335,9 @@
       <InlineField label="Brand" value={it.brand ?? ''} ai={ai('brand')} locked={!canEdit} errorKeys={['brand']} save={core('brand', 'Brand')} />
       <InlineField label="Model" mono value={it.model ?? ''} ai={ai('model')} locked={!canEdit} errorKeys={['model']} save={core('model', 'Model')} />
       <InlineField label="Serial" mono value={it.serial ?? ''} ai={ai('serial')} locked={!canEdit} errorKeys={['serial']} save={core('serial', 'Serial')} />
+      {#if it.serial}
+        <div class="px-4 pb-1 md:px-6"><Button class="h-8" icon="copy" onclick={copySerial}>Copy serial</Button></div>
+      {/if}
       <InlineField label="Color" value={it.color ?? ''} ai={ai('color')} locked={!canEdit} errorKeys={['color']} save={core('color', 'Color')} />
       <InlineField label="Quantity" kind="int" value={String(it.quantity)} ai={ai('quantity')} locked={!canEdit} errorKeys={['quantity']} save={(t) => change({ quantity: t === '' ? null : Number.isInteger(Number(t)) ? Number(t) : t }, { quantity: it.quantity }, 'Quantity')} />
       <InlineField label="Condition" kind="select" value={it.condition ?? ''} display={it.condition ? valueLabel(it.condition) : ''} options={[{ value: '', label: 'Not set' }, ...catalog.conditions.map((c) => ({ value: c, label: valueLabel(c) }))]} ai={ai('condition')} locked={!canEdit} errorKeys={['condition']} save={core('condition', 'Condition')} />
@@ -334,7 +364,12 @@
       </div>
     {/if}
 
-    <h3 class="m-0 flex h-11 items-center gap-2 border-b border-divider bg-surface-subtle px-4 text-[13px] font-semibold md:px-6"><Icon name="receipt" class="text-label" />Purchase and warranty</h3>
+    <h3 class="m-0 flex h-11 items-center gap-2 border-b border-divider bg-surface-subtle px-4 text-[13px] font-semibold md:px-6"><Icon name="receipt" class="text-label" />Purchase and warranty
+      {#if canEdit}
+        <Button class="ml-auto h-8" icon="camera" onclick={() => receiptInput?.click()}>Add receipt</Button>
+        <input bind:this={receiptInput} type="file" accept="image/*" class="hidden" onchange={addReceipt} tabindex="-1" aria-hidden="true" />
+      {/if}
+    </h3>
     <div class="flex flex-col bg-surface py-1">
       <InlineField label="Bought on" kind="date" value={it.purchase.date?.slice(0, 10) ?? ''} ai={ai('purchase_date')} locked={!canEdit} errorKeys={['purchase_date', 'purchase.date']} save={(t) => change({ purchase: { date: blank(t) } }, { purchase: { date: it.purchase.date } }, 'Purchase date')} />
       <InlineField
@@ -349,6 +384,12 @@
       />
       <InlineField label="Seller" value={it.purchase.seller ?? ''} ai={ai('seller')} locked={!canEdit} errorKeys={['seller', 'purchase.seller']} save={(t) => change({ purchase: { seller: blank(t) } }, { purchase: { seller: it.purchase.seller } }, 'Seller')} />
       <InlineField label="Warranty until" kind="date" value={it.warranty.end?.slice(0, 10) ?? ''} ai={ai('warranty_end')} locked={!canEdit} errorKeys={['warranty_end', 'warranty.end']} save={(t) => change({ warranty: { end: blank(t) } }, { warranty: { end: it.warranty.end } }, 'Warranty')} />
+      {#if warrantySourceText(it.warranty.source) && it.warranty.end}
+        <p class="m-0 px-4 pb-2 text-[12px] text-muted md:px-6" data-testid="warranty-source">{warrantySourceText(it.warranty.source)}</p>
+      {/if}
+      {#each it.photos.filter((p) => p.role === 'receipt') as r (r.link_id)}
+        <a href={photoUrl(r.sha256, 'screen')} target="_blank" rel="noreferrer" class="mx-4 mb-2 block w-fit md:mx-6"><img src={photoUrl(r.sha256)} alt="Receipt" class="h-20 rounded-control border border-border" /></a>
+      {/each}
     </div>
 
     <History itemId={it.id} />

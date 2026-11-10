@@ -17,7 +17,7 @@
       <span class="block h-1.5 overflow-hidden rounded-full bg-chrome" role="progressbar" aria-valuenow={pct} aria-valuemin="0" aria-valuemax="100" aria-label="Boxes packed">
         <span class="block h-full rounded-full bg-accent" style:width="{pct}%"></span>
       </span>
-      <span class="mt-1 block text-[12px] text-muted"><span class="font-mono">{packed}</span> of <span class="font-mono">{moving.total}</span> {moving.total === 1 ? 'box' : 'boxes'} packed · <span class="font-mono">{moving.by_status.open ?? 0}</span> open</span>
+      <span class="mt-1 block text-[12px] text-muted"><span class="font-mono">{packed}</span> of <span class="font-mono">{moving.total}</span> {moving.total === 1 ? 'box' : 'boxes'} packed · <span class="font-mono">{moving.by_status.open ?? 0}</span> open{#if moving.by_status.arrived} · <span class="font-mono">{moving.by_status.arrived}</span> to unpack{/if}</span>
     </span>
   </span>
   <span class="flex flex-wrap gap-x-4 gap-y-1.5">

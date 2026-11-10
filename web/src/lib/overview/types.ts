@@ -27,7 +27,7 @@ export interface RecentEntry {
   summary: Record<string, unknown>
 }
 
-export type NeedsKind = 'drafts' | 'warranty_ending' | 'unseen' | 'failed_jobs'
+export type NeedsKind = 'drafts' | 'warranty_ending' | 'unseen' | 'failed_jobs' | 'not_found'
 
 export interface NeedsRow {
   id: string

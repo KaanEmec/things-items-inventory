@@ -217,6 +217,66 @@ func (q *Queries) OverviewFailedJobs(ctx context.Context, arg OverviewFailedJobs
 	return items, nil
 }
 
+const overviewNotFound = `-- name: OverviewNotFound :many
+SELECT id, name, category, updated_at AS at FROM items
+WHERE household_id = ? AND deleted_at IS NULL AND draft = 0 AND place_id IS NULL
+ORDER BY updated_at DESC, id DESC
+LIMIT ?
+`
+
+type OverviewNotFoundParams struct {
+	HouseholdID string
+	Limit       int64
+}
+
+type OverviewNotFoundRow struct {
+	ID       string
+	Name     string
+	Category string
+	At       string
+}
+
+func (q *Queries) OverviewNotFound(ctx context.Context, arg OverviewNotFoundParams) ([]OverviewNotFoundRow, error) {
+	rows, err := q.db.QueryContext(ctx, overviewNotFound, arg.HouseholdID, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []OverviewNotFoundRow
+	for rows.Next() {
+		var i OverviewNotFoundRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Category,
+			&i.At,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const overviewNotFoundCount = `-- name: OverviewNotFoundCount :one
+SELECT CAST(COUNT(*) AS INTEGER) FROM items
+WHERE household_id = ? AND deleted_at IS NULL AND draft = 0 AND place_id IS NULL
+`
+
+// Items that were marked "not found" while unpacking (live, confirmed, in no place).
+func (q *Queries) OverviewNotFoundCount(ctx context.Context, householdID string) (int64, error) {
+	row := q.db.QueryRowContext(ctx, overviewNotFoundCount, householdID)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const overviewPlaceCount = `-- name: OverviewPlaceCount :one
 SELECT CAST(COUNT(*) AS INTEGER) FROM places
 WHERE household_id = ? AND deleted_at IS NULL AND kind <> 'box'

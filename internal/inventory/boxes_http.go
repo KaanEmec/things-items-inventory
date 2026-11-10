@@ -20,6 +20,8 @@ func (s *Service) boxRoutes(mux *httpapi.Mux) {
 	mux.HandleFunc("GET /api/v1/boxes/{id}", read(s.getBox))
 	mux.HandleFunc("PATCH /api/v1/boxes/{id}", write(s.patchBox))
 	mux.HandleFunc("POST /api/v1/boxes/{id}/close", write(s.closeBox))
+	mux.HandleFunc("POST /api/v1/boxes/bulk", write(s.bulkBoxes))
+	mux.HandleFunc("POST /api/v1/boxes/{id}/unpack", write(s.unpackBox))
 	mux.HandleFunc("PUT /api/v1/me/packing-box", write(s.putPackingBox))
 }
 
