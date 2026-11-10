@@ -7,8 +7,10 @@
     title: string
     children: Snippet
     actions?: Snippet
+    /** `lg` for forms. */
+    size?: 'md' | 'lg'
   }
-  let { open = $bindable(false), title, children, actions }: Props = $props()
+  let { open = $bindable(false), title, children, actions, size = 'md' }: Props = $props()
   let el: HTMLDialogElement
 
   $effect(() => {
@@ -23,7 +25,7 @@
   onclose={() => (open = false)}
   onclick={(e) => e.target === el && el.close()}
   aria-labelledby="dialog-title"
-  class="m-auto w-[min(92vw,440px)] rounded-[14px] border border-border bg-surface p-0 text-ink shadow-popover backdrop:bg-ink/40 max-md:mb-0 max-md:w-full max-md:max-w-none max-md:rounded-b-none max-md:rounded-t-sheet"
+  class="m-auto max-h-[92dvh] {size === 'lg' ? 'w-[min(92vw,640px)]' : 'w-[min(92vw,440px)]'} overflow-y-auto rounded-[14px] border border-border bg-surface p-0 text-ink shadow-popover backdrop:bg-ink/40 max-md:mb-0 max-md:w-full max-md:max-w-none max-md:rounded-b-none max-md:rounded-t-sheet"
 >
   <div class="flex items-center gap-2 border-b border-divider px-5 py-3">
     <h2 id="dialog-title" class="flex-1 text-[16px] font-bold">{title}</h2>

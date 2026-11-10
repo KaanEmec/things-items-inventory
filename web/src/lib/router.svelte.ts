@@ -4,6 +4,8 @@ export const router = $state({
   path: typeof location === 'undefined' ? '/' : location.pathname,
   /** URL fragment without the `#`; one-time links keep their token here, away from server logs. */
   hash: typeof location === 'undefined' ? '' : location.hash.slice(1),
+  /** Query string with its leading `?` (or empty); list filters live here. */
+  search: typeof location === 'undefined' ? '' : location.search,
 })
 
 /** Token from a fragment like `token=abc` (or a bare `abc`). */
@@ -21,6 +23,7 @@ export function navigate(to: string, replace = false) {
   const u = new URL(to, 'http://x')
   router.path = u.pathname
   router.hash = u.hash.slice(1)
+  router.search = u.search
 }
 
 /** True when `href` is the current page or one of its parents (`/` matches only itself). */
@@ -33,6 +36,7 @@ export function startRouter() {
   const onPop = () => {
     router.path = location.pathname
     router.hash = location.hash.slice(1)
+    router.search = location.search
   }
   const onClick = (e: MouseEvent) => {
     if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return

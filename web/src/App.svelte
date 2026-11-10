@@ -2,6 +2,7 @@
   import { onMount } from 'svelte'
   import Shell from './lib/shell/Shell.svelte'
   import { auth, boot } from './lib/auth.svelte'
+  import { captureQueue } from './lib/capture/queue.svelte'
   import { fragmentToken, navigate, router, startRouter } from './lib/router.svelte'
   import Button from './lib/ui/Button.svelte'
   import Toast from './lib/ui/Toast.svelte'
@@ -21,6 +22,13 @@
   // One-time links: /reset#token=... and /invite#token=... (the token stays in the fragment).
   const resetToken = $derived(router.path === '/reset' ? fragmentToken(router.hash) : '')
   const inviteToken = $derived(router.path === '/invite' ? fragmentToken(router.hash) : '')
+
+  // Photos waiting from an earlier visit start uploading as soon as someone is signed in.
+  $effect(() => {
+    if (auth.status !== 'ready') return
+    void captureQueue.start()
+    return captureQueue.attach()
+  })
 
   // Signed in people have no use for the sign-in or setup addresses.
   $effect(() => {

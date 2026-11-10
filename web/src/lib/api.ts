@@ -12,7 +12,7 @@ export class ApiError extends Error {
   }
 }
 
-export type Page<T> = { items: T[]; next_cursor: string }
+export type Page<T> = { data: T[]; next_cursor: string | null }
 
 let onUnauthorized: ((path: string) => void) | undefined
 /** The auth store registers here; called when a signed-in request comes back 401. */
@@ -28,8 +28,8 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     res = await fetch(path, {
       method,
       credentials: 'same-origin',
-      headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
-      body: body === undefined ? undefined : JSON.stringify(body),
+      headers: body === undefined || body instanceof FormData ? undefined : { 'Content-Type': 'application/json' },
+      body: body === undefined ? undefined : body instanceof FormData ? body : JSON.stringify(body),
     })
   } catch {
     throw new ApiError(0, 'network', 'Could not reach the server. Check your connection.')
@@ -64,4 +64,6 @@ export const api = {
   put: <T>(path: string, body?: unknown) => request<T>('PUT', path, body ?? {}),
   patch: <T>(path: string, body?: unknown) => request<T>('PATCH', path, body ?? {}),
   del: <T = void>(path: string) => request<T>('DELETE', path),
+  /** Multipart upload; the browser sets the content type. */
+  upload: <T>(path: string, form: FormData) => request<T>('POST', path, form),
 }

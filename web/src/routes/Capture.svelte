@@ -1,5 +1,9 @@
 <script lang="ts">
-  import FlowFrame from '../lib/shell/FlowFrame.svelte'
+  import { MediaQuery } from 'svelte/reactivity'
+  import CaptureDesktop from '../lib/capture/CaptureDesktop.svelte'
+  import CapturePhone from '../lib/capture/CapturePhone.svelte'
+
+  const desktop = new MediaQuery('min-width: 768px')
 </script>
 
-<FlowFrame icon="camera" title="Capture" />
+{#if desktop.current}<CaptureDesktop />{:else}<CapturePhone />{/if}

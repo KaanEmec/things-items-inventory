@@ -25,7 +25,7 @@ export interface Route {
 // To add a screen: create src/routes/X.svelte and add a row here.
 export const routes: Route[] = [
   { path: '/', title: 'Overview', icon: 'dashboard', component: Overview, side: 'library', tab: 'Home' },
-  { path: '/items', title: 'Items', icon: 'tag', component: Items, side: 'library', tab: 'Items' },
+  { path: '/items', title: 'Items', icon: 'tag', component: Items, prefix: true, side: 'library', tab: 'Items' },
   { path: '/capture', title: 'Capture', icon: 'camera', component: Capture, tab: 'Capture' },
   { path: '/places', title: 'Places', icon: 'pin', component: Places, side: 'library', tab: 'Places' },
   { path: '/moving', title: 'Moving', icon: 'truck', component: Moving, side: 'tools', tab: 'Moving' },

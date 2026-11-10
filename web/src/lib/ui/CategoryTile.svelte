@@ -6,6 +6,7 @@
     clothing: { icon: 'shirt', cls: 'bg-clothing-bg text-clothing-fg' },
     accessory: { icon: 'watch', cls: 'bg-accessory-bg text-accessory-fg' },
     part: { icon: 'chip', cls: 'bg-part-bg text-part-fg' },
+    other: { icon: 'package', cls: 'bg-stored-bg text-stored-fg' },
   } as const satisfies Record<string, { icon: IconName; cls: string }>
 
   export type Category = keyof typeof categories
@@ -16,8 +17,8 @@
   import Icon from '../Icon.svelte'
 
   /** `icon` overrides the category glyph (e.g. a drone for a gadget). */
-  let { category, icon, size = 34 }: { category: Category; icon?: IconName; size?: number } = $props()
-  const c = $derived(categories[category])
+  let { category, icon, size = 34 }: { category: Category | (string & {}); icon?: IconName; size?: number } = $props()
+  const c = $derived(categories[category as Category] ?? categories.other)
 </script>
 
 <span

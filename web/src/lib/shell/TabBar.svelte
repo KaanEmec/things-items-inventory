@@ -1,5 +1,6 @@
 <script lang="ts">
   import Icon from '../Icon.svelte'
+  import { captureQueue } from '../capture/queue.svelte'
   import { isActive } from '../router.svelte'
   import { routes } from '../../routes'
 
@@ -13,8 +14,14 @@
   {#each tabs as r (r.path)}
     {#if r.path === '/capture'}
       <a href={r.path} aria-label={r.title} class="flex min-h-12 justify-center">
-        <span class="-mt-[22px] flex size-14 items-center justify-center rounded-[18px] border-[3px] border-surface bg-accent text-white shadow-capture">
+        <span class="relative -mt-[22px] flex size-14 items-center justify-center rounded-[18px] border-[3px] border-surface bg-accent text-white shadow-capture">
           <Icon name={r.icon} size={22} />
+          {#if captureQueue.pending + captureQueue.failed > 0}
+            <span
+              class="absolute -top-2 -right-2 flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-surface px-1 font-mono text-[11px] font-semibold text-white {captureQueue.failed ? 'bg-danger' : 'bg-ink'}"
+              aria-label="{captureQueue.pending} photos to upload{captureQueue.failed ? `, ${captureQueue.failed} failed` : ''}"
+            >{captureQueue.pending + captureQueue.failed}</span>
+          {/if}
         </span>
       </a>
     {:else}
