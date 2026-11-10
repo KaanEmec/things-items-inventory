@@ -1,5 +1,6 @@
 <script lang="ts">
   import { MediaQuery } from 'svelte/reactivity'
+  import { ai } from '../lib/ai.svelte'
   import { explain } from '../lib/errors'
   import Icon from '../lib/Icon.svelte'
   import { getCatalog, categoryLabel, valueLabel } from '../lib/inventory/categories'
@@ -7,6 +8,7 @@
   import { getTree, listHomes } from '../lib/inventory/places'
   import Grid from '../lib/quickadd/Grid.svelte'
   import { Sheet } from '../lib/quickadd/sheet.svelte'
+  import { createSuggest } from '../lib/quickadd/suggest'
   import FlowFrame from '../lib/shell/FlowFrame.svelte'
   import Panel from '../lib/shell/Panel.svelte'
   import PageHeader from '../lib/shell/PageHeader.svelte'
@@ -27,9 +29,10 @@
   // The sheet only exists on a desktop-sized screen.
   $effect(() => {
     if (!desktop.current || sheet) return
+    void ai.ensure() // suggest() asks ai.status('text') on every row
     getCatalog().then(
       (catalog) => {
-        sheet = new Sheet(catalog)
+        sheet = new Sheet(catalog, { suggest: createSuggest(), sendAiFields: true })
         loadPlaces(sheet)
       },
       (e) => (error = explain(e).message),

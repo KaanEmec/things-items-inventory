@@ -443,4 +443,66 @@ describe('suggestions', () => {
       vi.useRealTimers()
     }
   })
+
+  it('a suggested category fills the default, switches the attribute columns, and lists attributes only after it', async () => {
+    const { s } = make({ suggest: answer({ category: 'gadget', brand: 'Sony', 'attr.storage_gb': '128' }) })
+    s.setCell(0, 0, 'wh1000xm4')
+    s.moveTo(0, 3)
+    await tick()
+    expect(s.suggestionAt(0, 2)).toBe('gadget') // shown although the cell holds the default
+    expect(s.display(s.rows[0], s.columns[2])).toBe('') // the ghost replaces the default in the cell
+    expect(s.columns.some((c) => c.key === 'attr.storage_gb')).toBe(false)
+    s.moveTo(0, 2)
+    s.handleKey({ key: 'Enter', metaKey: true }) // the whole row
+    expect(s.rows[0].values).toMatchObject({ category: 'gadget', brand: 'Sony', 'attr.storage_gb': '128' })
+    expect(s.rows[0].ai.sort()).toEqual(['attr.storage_gb', 'brand', 'category'])
+    expect(s.category).toBe('gadget')
+    expect(s.columns.some((c) => c.key === 'attr.storage_gb')).toBe(true)
+  })
+
+  it('does not ask for or take a category once the person picked one', async () => {
+    const asked: Record<string, string>[] = []
+    const suggest: SuggestFn = async (rows) => {
+      asked.push(rows[0].values)
+      return rows.map((r) => ({ id: r.id, cells: { category: 'gadget', brand: 'Sony' } }))
+    }
+    const { s } = make({ suggest })
+    s.setCategory('clothing') // the person picked for the sheet
+    s.setCell(0, 0, 'jacket')
+    s.moveTo(0, 3)
+    await tick()
+    expect(asked[0].category).toBe('clothing')
+    expect(s.suggestionAt(0, 2)).toBeUndefined()
+    s.handleKey({ key: 'Enter', metaKey: true })
+    expect(s.rows[0].values.category).toBe('clothing')
+    expect(s.category).toBe('clothing')
+
+    // A row category picked by typing counts too.
+    const t = make({ suggest })
+    t.s.setCell(0, 0, 'thing')
+    t.s.setCell(0, 2, 'gadget')
+    t.s.moveTo(0, 3)
+    await tick()
+    expect(asked[1].category).toBe('gadget')
+    expect(t.s.suggestionAt(0, 2)).toBeUndefined()
+    expect(t.s.category).toBe('other')
+  })
+
+  it('sends accepted category and attribute as ai_fields', async () => {
+    vi.useFakeTimers()
+    try {
+      const { s, calls } = make({ suggest: answer({ category: 'gadget', 'attr.storage_gb': '128' }), sendAiFields: true })
+      s.setCell(0, 0, 'phone')
+      s.moveTo(0, 3)
+      await vi.advanceTimersByTimeAsync(0)
+      s.moveTo(0, 2)
+      s.handleKey({ key: 'Enter', metaKey: true })
+      s.moveTo(1, 0)
+      await vi.advanceTimersByTimeAsync(0)
+      expect(calls[0].body).toMatchObject({ category: 'gadget', attributes: { storage_gb: 128 } })
+      expect((calls[0].body!.ai_fields as string[]).sort()).toEqual(['attributes.storage_gb', 'category'])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })

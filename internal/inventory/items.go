@@ -300,6 +300,9 @@ var aiFieldPaths = []string{"name", "category", "brand", "model", "serial", "col
 func (e *edit) applyFields(ctx context.Context, q *sqlc.Queries, hid string, f Fields, allowed []string) error {
 	keys := make([]string, 0, len(f))
 	for k := range f {
+		if k == "ai_fields" && slices.Contains(allowed, k) {
+			continue // handled after the fields it names
+		}
 		keys = append(keys, k)
 	}
 	sort.Slice(keys, func(i, j int) bool { // category first: attributes depend on it
@@ -345,6 +348,36 @@ func (e *edit) applyFields(ctx context.Context, q *sqlc.Queries, hid string, f F
 			}
 			e.person(k)
 		}
+	}
+	if raw, ok := f["ai_fields"]; ok && slices.Contains(allowed, "ai_fields") {
+		return e.markAccepted(f, raw)
+	}
+	return nil
+}
+
+// markAccepted handles a client's ai_fields: the fields the person accepted
+// from an AI suggestion (the quick-add sheet). Only fields the same request
+// writes may be named: top-level fields an AI write may fill, and
+// "attributes.<key>" for keys inside the request's attributes object.
+// Anything else is rejected.
+func (e *edit) markAccepted(f Fields, raw json.RawMessage) error {
+	var paths []string
+	if err := json.Unmarshal(raw, &paths); err != nil {
+		return fieldErr("ai_fields", "Must be a list of field names.")
+	}
+	var attrs map[string]json.RawMessage
+	if a, ok := f["attributes"]; ok {
+		_ = json.Unmarshal(a, &attrs)
+	}
+	for _, p := range paths {
+		if key, isAttr := strings.CutPrefix(p, "attributes."); isAttr {
+			if _, in := attrs[key]; !in || !attrKeyRe.MatchString(key) {
+				return fieldErr("ai_fields", fmt.Sprintf("%q is not set in this request.", p))
+			}
+		} else if _, in := f[p]; !in || !slices.Contains(aiFieldPaths, p) {
+			return fieldErr("ai_fields", fmt.Sprintf("%q is not a field this request sets.", p))
+		}
+		e.byAI(p)
 	}
 	return nil
 }
@@ -479,7 +512,7 @@ func getItemRow(ctx context.Context, q *sqlc.Queries, hid, itemID string) (sqlc.
 // ---- writes (each takes a transaction) --------------------------------------
 
 var (
-	patchFields  = []string{"name", "category", "brand", "model", "serial", "color", "quantity", "condition", "notes", "status", "attributes", "place_id", "purchase", "warranty", "draft"}
+	patchFields  = []string{"name", "category", "brand", "model", "serial", "color", "quantity", "condition", "notes", "status", "attributes", "place_id", "purchase", "warranty", "draft", "ai_fields"}
 	createFields = patchFields
 )
 

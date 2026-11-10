@@ -6,6 +6,7 @@ import Items from './Items.svelte'
 import Moving from './Moving.svelte'
 import Overview from './Overview.svelte'
 import Places from './Places.svelte'
+import PrintLabels from './PrintLabels.svelte'
 import QuickAdd from './QuickAdd.svelte'
 import Settings from './Settings.svelte'
 
@@ -32,6 +33,7 @@ export const routes: Route[] = [
   { path: '/quick-add', title: 'Quick add', icon: 'table', component: QuickAdd, side: 'tools' },
   { path: '/settings', title: 'Settings', icon: 'sliders', component: Settings, prefix: true, side: 'foot' },
   // Hidden: reachable by URL only.
+  { path: '/print/labels', title: 'Print labels', icon: 'printer', component: PrintLabels },
   { path: '/dev/components', title: 'Components', icon: 'sliders', component: Components },
 ]
 

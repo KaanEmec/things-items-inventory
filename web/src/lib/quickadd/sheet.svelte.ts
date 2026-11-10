@@ -148,6 +148,9 @@ export class Sheet {
   #suggestPending = new Set<string>()
   #suggestScheduled = false
   #typeahead = { text: '', at: 0 }
+  /** Rows whose category a person set, and whether they set the sheet's. A suggestion only fills a category nobody picked. */
+  #pickedCat = new Set<string>()
+  #sheetCatPicked = false
 
   constructor(catalog: Catalog, opts: SheetOptions = {}) {
     this.catalog = catalog
@@ -199,6 +202,7 @@ export class Sheet {
 
   /** Switch the column set. Rows following the sheet category switch with it; values of columns that still exist stay. */
   setCategory(key: string) {
+    this.#sheetCatPicked = true
     const old = this.category
     if (key === old) return
     this.category = key
@@ -286,6 +290,7 @@ export class Sheet {
   /** What a cell shows: place names and option labels instead of ids. */
   display(row: Row, col: Column): string {
     const v = row.values[col.key] ?? ''
+    if (col.key === 'category' && row.suggestions.category && this.#categoryOpen(row)) return '' // the ghost shows instead of the default
     if (col.kind === 'place') return this.places[v]?.name ?? ''
     if (col.kind === 'select') return col.options?.find((o) => o.value === v)?.label ?? v
     return v
@@ -308,6 +313,7 @@ export class Sheet {
     if (!this.#setRaw(row, key, value)) return false
     row.ai = row.ai.filter((k) => k !== key)
     delete row.suggestions[key]
+    if (key === 'category') this.#pickedCat.add(row.id)
     changes?.push({ rowId: row.id, key, before, after: value, beforeAi: wasAi })
     return true
   }
@@ -889,7 +895,15 @@ export class Sheet {
     const c = this.columns[col]
     if (!r || !c) return undefined
     const s = r.suggestions[c.key]
-    return s && (r.values[c.key] ?? '') === '' ? s : undefined
+    if (!s) return undefined
+    if (c.key === 'category') return this.#categoryOpen(r) && s !== r.values.category ? s : undefined
+    if (attrKey(c.key) && !this.cellApplies(r, c)) return undefined
+    return (r.values[c.key] ?? '') === '' ? s : undefined
+  }
+
+  /** Nobody picked this row's category: it is the sheet's default, which a suggestion may replace. */
+  #categoryOpen(row: Row): boolean {
+    return !this.#sheetCatPicked && !this.#pickedCat.has(row.id) && !row.ai.includes('category')
   }
 
   #askSuggest(row: Row | undefined) {
@@ -915,7 +929,9 @@ export class Sheet {
       if (!row) continue
       const name = (row.values.name ?? '').trim()
       asked.set(id, name)
-      input.push({ id, name, values: { ...row.values } })
+      const values = { ...row.values }
+      if (this.#categoryOpen(row)) delete values.category // not picked: the AI may suggest one
+      input.push({ id, name, values })
     }
     if (!input.length || !this.suggest) return
     let out: SuggestResult[]
@@ -929,12 +945,37 @@ export class Sheet {
       const row = this.rows.find((r) => r.id === res.id)
       // An edited name makes the old answer wrong.
       if (!row || (row.values.name ?? '').trim() !== asked.get(res.id)) continue
-      for (const [key, text] of Object.entries(res.cells ?? {})) {
-        if (!text || !this.columns.some((c) => c.key === key)) continue
+      // The category a suggestion would set decides which attributes make sense.
+      const open = this.#categoryOpen(row)
+      const cells = res.cells ?? {}
+      const cat = open && cells.category && this.#cat(cells.category) ? cells.category : row.values.category
+      for (const [key, text] of Object.entries(cells)) {
+        if (!text) continue
+        if (key === 'category') {
+          if (open && this.#cat(text) && text !== row.values.category) row.suggestions.category = text
+          continue
+        }
+        const a = attrKey(key)
+        if (a ? !this.#cat(cat)?.attributes.some((x) => x.key === a) : !this.columns.some((c) => c.key === key)) continue
         if ((row.values[key] ?? '') !== '') continue // never replaces a typed value
         row.suggestions[key] = text
       }
     }
+  }
+
+  /**
+   * The person had not picked a category and took a suggested one: the attribute columns become its attributes.
+   * Saved rows keep their own category (their other cells show as not applying); blank rows follow.
+   */
+  #followCategory(row: Row, key: string) {
+    if (this.#sheetCatPicked || key === this.category) return
+    const old = this.category
+    this.category = key
+    for (const r of this.rows) {
+      if (r !== row && !r.created && r.values.category === old && !this.#pickedCat.has(r.id)) this.#setRaw(r, 'category', key)
+    }
+    this.cursor.col = Math.min(this.cursor.col, this.columns.length - 1)
+    this.anchor = { ...this.cursor }
   }
 
   /** Tab: accept the suggestion under the cursor. */
@@ -951,12 +992,17 @@ export class Sheet {
     if (!row) return false
     const changes: Change[] = []
     const accepted: string[] = []
-    for (const key of keys) {
+    // The category goes first: it decides which attribute cells exist.
+    const ordered = [...keys].sort((a, b) => Number(b === 'category') - Number(a === 'category'))
+    for (const key of ordered) {
       if (!key) continue
       const text = row.suggestions[key]
-      if (!text || (row.values[key] ?? '') !== '') continue
+      if (!text) continue
+      if (key === 'category' ? !this.#categoryOpen(row) : (row.values[key] ?? '') !== '') continue
+      if (attrKey(key) && !this.#cat(row.values.category)?.attributes.some((a) => a.key === attrKey(key))) continue
       const before = row.values[key] ?? ''
       this.#setRaw(row, key, text)
+      if (key === 'category') this.#followCategory(row, text)
       delete row.suggestions[key]
       if (!row.ai.includes(key)) row.ai.push(key)
       changes.push({ rowId: row.id, key, before, after: text })
