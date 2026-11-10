@@ -1,0 +1,34 @@
+services:
+  inventory:
+    image: things-items-inventory:latest # replace with your registry image
+    # build: .
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - inventory-data:/data
+    environment:
+      INVENTORY_PUBLIC_URL: "https://stuff.example.com"
+      # Set to 1 only behind a reverse proxy that sets X-Forwarded-For.
+      # INVENTORY_TRUST_PROXY: "1"
+      # Refuse AI endpoints on private addresses.
+      # INVENTORY_AI_BLOCK_PRIVATE: "1"
+      # Optional server-wide AI defaults (households can set their own in Settings).
+      # INVENTORY_AI_VISION_BASE_URL: "https://openrouter.ai/api/v1"
+      # INVENTORY_AI_VISION_TOKEN: ""
+      # INVENTORY_AI_VISION_MODEL: ""
+      # INVENTORY_AI_TEXT_BASE_URL: "https://openrouter.ai/api/v1"
+      # INVENTORY_AI_TEXT_TOKEN: ""
+      # INVENTORY_AI_TEXT_MODEL: ""
+    # The image has no shell or curl, so the orchestrator must probe over HTTP
+    # (Coolify: set a health check on path /api/health, port 8080). Compose
+    # cannot probe from outside the container; enable this once the binary has
+    # a `healthcheck` subcommand:
+    # healthcheck:
+    #   test: ["CMD", "/inventory", "healthcheck"]
+    #   interval: 30s
+    #   timeout: 5s
+    #   retries: 3
+
+volumes:
+  inventory-data:

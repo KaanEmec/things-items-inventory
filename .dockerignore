@@ -1,0 +1,11 @@
+.git
+.github
+.claude
+**/node_modules
+web/dist/app
+bin
+data
+*.md
+!web/placeholder/**
+Dockerfile
+docker-compose.yml
