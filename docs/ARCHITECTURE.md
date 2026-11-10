@@ -59,6 +59,7 @@ in the cross-household test (`crosshousehold_test.go`), which tries every
 | `INVENTORY_ADDR` | Listen address, default `:8080` |
 | `INVENTORY_DATA` | Data directory (`app.db`, `photos/`, `secret.key`), default `./data`; `/data` in Docker |
 | `INVENTORY_PUBLIC_URL` | Address people use; `https://` makes cookies Secure and prefixes printed links |
+| `INVENTORY_SETUP_TOKEN` | If set, first-run setup needs this token (403 otherwise); `inventory setup-token` makes one. A startup warning says setup is open when it is unset and `INVENTORY_PUBLIC_URL` is https |
 | `INVENTORY_TRUST_PROXY` | `1` takes the client address from `X-Forwarded-For` (only behind a proxy) |
 | `INVENTORY_SECRET_KEY` | Base64 key for stored tokens; empty uses `<data>/secret.key` |
 | `INVENTORY_AI_BLOCK_PRIVATE` | `1` refuses AI endpoints on private addresses |

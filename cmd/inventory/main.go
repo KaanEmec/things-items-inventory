@@ -8,6 +8,8 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -15,6 +17,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -80,6 +83,9 @@ func run(cfg config.Config) error {
 		}
 	}()
 
+	if cfg.SetupToken == "" && strings.HasPrefix(cfg.PublicURL, "https://") {
+		slog.Warn("first-run setup is open: anyone who reaches this address first can create the household; set INVENTORY_SETUP_TOKEN (inventory setup-token makes one)")
+	}
 	slog.Info("listening", "addr", cfg.Addr, "version", version)
 	if err := srv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
 		stop()
@@ -135,6 +141,14 @@ func runCommand(cfg config.Config, args []string) int {
 			return 1
 		}
 		return 0
+	case "setup-token":
+		b := make([]byte, 24)
+		if _, err := rand.Read(b); err != nil {
+			fmt.Fprintln(os.Stderr, "error:", err)
+			return 1
+		}
+		fmt.Println(hex.EncodeToString(b))
+		return 0
 	case "reindex":
 		ctx := context.Background()
 		database, err := db.Open(ctx, cfg.DataDir)
@@ -173,7 +187,7 @@ func runCommand(cfg config.Config, args []string) int {
 		}
 		return 0
 	default:
-		fmt.Fprintf(os.Stderr, "unknown command %q\nusage: inventory [healthcheck | reindex | reset-password <email>]\n", args[0])
+		fmt.Fprintf(os.Stderr, "unknown command %q\nusage: inventory [healthcheck | setup-token | reindex | reset-password <email>]\n", args[0])
 		return 2
 	}
 }

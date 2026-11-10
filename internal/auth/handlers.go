@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"crypto/subtle"
 	"database/sql"
 	"errors"
 	"net/http"
@@ -52,7 +53,7 @@ func (s *Service) getSetup(w http.ResponseWriter, r *http.Request) {
 		httpapi.WriteError(w, err)
 		return
 	}
-	httpapi.WriteJSON(w, http.StatusOK, map[string]bool{"needed": n == 0})
+	httpapi.WriteJSON(w, http.StatusOK, map[string]bool{"needed": n == 0, "token_required": n == 0 && s.cfg.SetupToken != ""})
 }
 
 var errSetupDone = httpapi.Conflict("Setup has already been completed.")
@@ -68,6 +69,7 @@ func (s *Service) postSetup(w http.ResponseWriter, r *http.Request) {
 		Password      string `json:"password"`
 		HouseholdName string `json:"household_name"`
 		Language      string `json:"language"`
+		SetupToken    string `json:"setup_token"`
 	}
 	if err := httpapi.DecodeJSON(w, r, &in); err != nil {
 		httpapi.WriteError(w, err)
@@ -103,6 +105,12 @@ func (s *Service) postSetup(w http.ResponseWriter, r *http.Request) {
 		return
 	} else if n > 0 {
 		httpapi.WriteError(w, errSetupDone)
+		return
+	}
+	if want := string(s.cfg.SetupToken); want != "" &&
+		subtle.ConstantTimeCompare([]byte(strings.TrimSpace(in.SetupToken)), []byte(want)) != 1 {
+		httpapi.WriteError(w, httpapi.NewError(httpapi.CodeForbidden,
+			"This server needs its setup token. Find it in your server's environment (INVENTORY_SETUP_TOKEN)."))
 		return
 	}
 	hash, err := HashPasswordCtx(r.Context(), in.Password) // slow: done before taking the write connection

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { api } from '../../lib/api'
-  import { loadSession } from '../../lib/auth.svelte'
+  import { auth, loadSession } from '../../lib/auth.svelte'
   import { explain, passwordProblem } from '../../lib/errors'
   import { browserLanguage } from '../../lib/format'
   import { navigate } from '../../lib/router.svelte'
@@ -14,6 +14,7 @@
   let email = $state('')
   let password = $state('')
   let householdName = $state('')
+  let setupToken = $state('')
   let fields = $state<Record<string, string>>({})
   let message = $state('')
   let busy = $state(false)
@@ -26,7 +27,7 @@
     if (p) return void (fields = { password: p })
     busy = true
     try {
-      await api.post('/api/v1/setup', { name, email, password, household_name: householdName, language: browserLanguage() })
+      await api.post('/api/v1/setup', { name, email, password, household_name: householdName, language: browserLanguage(), ...(auth.setupToken ? { setup_token: setupToken } : {}) })
       await loadSession()
       navigate('/', true)
     } catch (err) {
@@ -44,6 +45,9 @@
     <Field label="Email" type="email" bind:value={email} error={fields.email} autocomplete="email" required />
     <PasswordField label="Password" bind:value={password} error={fields.password} hint="At least 10 characters." autocomplete="new-password" />
     <Field label="Household name" bind:value={householdName} error={fields.household_name} autocomplete="off" required />
+    {#if auth.setupToken}
+      <Field label="Setup token" bind:value={setupToken} error={fields.setup_token} hint="Find it in your server's environment (INVENTORY_SETUP_TOKEN)" autocomplete="off" required />
+    {/if}
     <Button variant="primary" type="submit" disabled={busy} class="w-full">{busy ? 'Setting up' : 'Create household'}</Button>
   </form>
 </AuthFrame>

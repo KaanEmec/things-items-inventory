@@ -38,6 +38,9 @@ type Config struct {
 	// unique-local addresses (INVENTORY_AI_BLOCK_PRIVATE=1). Link-local and
 	// cloud-metadata addresses are always refused.
 	AIBlockPrivate bool
+	// SetupToken, when set (INVENTORY_SETUP_TOKEN), must accompany the
+	// first-run setup request, so a stranger cannot claim a fresh public instance.
+	SetupToken Secret
 }
 
 // Secret is a string that prints as "***" in logs and formatted output.
@@ -71,6 +74,7 @@ func Load() Config {
 		TrustedProxies: parseProxies(os.Getenv("INVENTORY_TRUSTED_PROXIES")),
 		SecretKey:      Secret(os.Getenv("INVENTORY_SECRET_KEY")),
 		AIBlockPrivate: boolEnv("INVENTORY_AI_BLOCK_PRIVATE"),
+		SetupToken:     Secret(strings.TrimSpace(os.Getenv("INVENTORY_SETUP_TOKEN"))),
 		AI: AIDefaults{
 			Vision: aiEndpoint("VISION"),
 			Text:   aiEndpoint("TEXT"),

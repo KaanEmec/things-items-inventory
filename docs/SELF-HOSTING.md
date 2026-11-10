@@ -19,6 +19,10 @@ AI is optional: the commented `INVENTORY_AI_*` variables set server-wide default
 
 Everything lives in `/data`, the only writable path: the SQLite database (with its WAL files), the photos (content-addressed) and `secret.key` (encrypts stored API tokens). The container runs as a non-root user (uid 65532); a bind mount must be writable by it.
 
+## Lock first-run setup
+
+Until the first account exists, anyone who reaches the address can create the household. For any internet-facing instance set `INVENTORY_SETUP_TOKEN` to a secret value (`docker run --rm IMAGE setup-token`, or `openssl rand -hex 24`). The setup screen then asks for it; once a household exists it is ignored. Unset, setup stays open and an https instance logs a warning at startup.
+
 ## HTTPS and a reverse proxy
 
 The camera and "install app" on a phone only work on HTTPS. Put a reverse proxy (Caddy, Traefik, nginx) in front of port 8080, serve it on your domain, and set:

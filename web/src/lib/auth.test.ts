@@ -37,6 +37,12 @@ test('setup needed leads to setup without asking for /me', async () => {
   expect(f).toHaveBeenCalledTimes(1)
 })
 
+test('setup token requirement is remembered for the setup screen', async () => {
+  route({ 'GET /api/v1/setup': Response.json({ needed: true, token_required: true }) })
+  await boot()
+  expect(auth.setupToken).toBe(true)
+})
+
 test('logged out: /me 401 shows login and remembers the page', async () => {
   route({ 'GET /api/v1/setup': Response.json({ needed: false }), 'GET /api/v1/me': unauth() })
   await boot()

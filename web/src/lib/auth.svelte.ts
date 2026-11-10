@@ -22,6 +22,8 @@ const V1 = '/api/v1'
 
 export const auth = $state({
   /** loading: not known yet; setup: no user exists; login: signed out; ready: signed in; error: server unreachable. */
+  /** The server wants INVENTORY_SETUP_TOKEN on the setup form. */
+  setupToken: false,
   status: 'loading' as 'loading' | 'setup' | 'login' | 'ready' | 'error',
   user: null as User | null,
   households: [] as HouseholdRef[],
@@ -104,8 +106,9 @@ export async function boot() {
   auth.status = 'loading'
   auth.error = ''
   try {
-    const s = await api.get<{ needed: boolean }>(`${V1}/setup`)
+    const s = await api.get<{ needed: boolean; token_required?: boolean }>(`${V1}/setup`)
     if (s.needed) {
+      auth.setupToken = !!s.token_required
       auth.status = 'setup'
       return
     }

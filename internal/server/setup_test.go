@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/cookiejar"
 	"strings"
@@ -51,5 +52,49 @@ func TestSetupSeedsStarterHome(t *testing.T) {
 	var tree struct{ Places []struct{ Kind string } }
 	if s != 200 || json.Unmarshal(b, &tree) != nil || len(tree.Places) < 3 || tree.Places[0].Kind != "room" {
 		t.Fatalf("tree %d %s", s, b)
+	}
+}
+
+func TestSetupToken(t *testing.T) {
+	d := dbtest.New(t)
+	srv := httpapitest.Server(t, Routes(Features(d, config.Config{SetupToken: "s3cret"}))...)
+	post := func(tok string) (int, string) {
+		body := `{"name":"Kaan","email":"k@example.com","password":"correct horse battery","household_name":"Emec"`
+		if tok != "" {
+			body += `,"setup_token":"` + tok + `"`
+		}
+		res, err := srv.Client().Post(srv.URL+"/api/v1/setup", "application/json", strings.NewReader(body+"}"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer res.Body.Close()
+		b, _ := io.ReadAll(res.Body)
+		return res.StatusCode, string(b)
+	}
+	get := func() string {
+		res, err := srv.Client().Get(srv.URL + "/api/v1/setup")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer res.Body.Close()
+		b, _ := io.ReadAll(res.Body)
+		return string(b)
+	}
+	if g := get(); !strings.Contains(g, `"token_required":true`) {
+		t.Fatalf("status %s", g)
+	}
+	for _, tok := range []string{"", "wrong"} {
+		if s, b := post(tok); s != 403 || strings.Contains(b, "s3cret") {
+			t.Fatalf("token %q: %d %s", tok, s, b)
+		}
+	}
+	if s, b := post("s3cret"); s != 201 {
+		t.Fatalf("right token %d %s", s, b)
+	}
+	if s, _ := post(""); s != 409 {
+		t.Fatalf("after setup %d", s)
+	}
+	if g := get(); !strings.Contains(g, `"token_required":false`) {
+		t.Fatalf("status after %s", g)
 	}
 }
